@@ -1,0 +1,26 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck --workspace=packages/core
+      - run: npm run test --workspace=packages/core
+      - run: npm run build --workspace=packages/core
+      - name: Verify dist output
+        run: |
+          test -f packages/core/dist/index.js || exit 1
+          test -f packages/core/dist/index.mjs || exit 1
+          test -f packages/core/dist/index.d.ts || exit 1
+          echo "✅ All dist files present"

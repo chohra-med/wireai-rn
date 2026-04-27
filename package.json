@@ -1,0 +1,16 @@
+{
+  "name": "wireai-rn-monorepo",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*", "examples/*"],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "dev:boilerplate": "turbo run start --filter=boilerplate"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}
