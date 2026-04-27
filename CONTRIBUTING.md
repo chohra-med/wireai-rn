@@ -6,7 +6,7 @@ Thank you for considering contributing to WireAI! This guide will help you get s
 
 ```bash
 # Clone the repo
-git clone https://github.com/malikchohra/wireai-rn.git
+git clone https://github.com/chohra-med/wireai-rn.git
 cd wireai-rn
 
 # Install dependencies

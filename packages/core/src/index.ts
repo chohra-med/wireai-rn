@@ -45,6 +45,10 @@ export { WebhookAdapter } from "./llm/webhook.adapter";
 export { createAdapter } from "./llm/llm-factory";
 export type { BaseAdapter } from "./llm/base-adapter";
 
+// ─── UI Helpers (Internal) ──────────────────────────────────────────────────
+export { Btn } from "./ui/Btn";
+export { InputField } from "./ui/InputField";
+
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 export {
   colors,

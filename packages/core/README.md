@@ -5,7 +5,7 @@
 Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No custom parsers. No prompt engineering. Works with Ollama, LM Studio, or any HTTP agent endpoint.
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
-[![license](https://img.shields.io/npm/l/wireai-rn.svg)](https://github.com/malikchohra/wireai-rn/blob/main/LICENSE)
+[![license](https://img.shields.io/npm/l/wireai-rn.svg)](https://github.com/chohra-med/wireai-rn/blob/main/LICENSE)
 
 ---
 
