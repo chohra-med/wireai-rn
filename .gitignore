@@ -5,3 +5,14 @@ dist/
 .DS_Store
 .env
 .env.local
+
+# Expo & React Native native build output
+.expo/
+ios/
+android/
+
+# Test coverage
+coverage/
+
+# Lockfile conflicts (project uses yarn)
+package-lock.json
