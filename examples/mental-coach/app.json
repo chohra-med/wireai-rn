@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Mental Coach",
+    "slug": "mental-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.malikscore.mentalcoach",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.malikscore.mentalcoach",
+      "adaptiveIcon": {
+        "backgroundColor": "#7A5AED"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
