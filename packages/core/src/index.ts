@@ -15,7 +15,9 @@ export { WireAIProvider } from "./provider/WireAIProvider";
 export { useWireAIThread } from "./hooks/useWireAIThread";
 export { useWireAIInput } from "./hooks/useWireAIInput";
 export { useWireAIAction } from "./hooks/useWireAIAction";
+export { useLLMConfigStorage } from "./hooks/useLLMConfigStorage";
 export type { UseWireAIThreadResult, SendMessageOptions } from "./hooks/useWireAIThread";
+export type { StorageBackend, UseLLMConfigStorageResult } from "./hooks/useLLMConfigStorage";
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 export { ComponentRenderer } from "./renderer/ComponentRenderer";
@@ -41,11 +43,15 @@ export {
 // ─── LLM Adapters ────────────────────────────────────────────────────────────
 export { OllamaAdapter } from "./llm/ollama.adapter";
 export { LMStudioAdapter } from "./llm/lmstudio.adapter";
+export { OpenAIAdapter } from "./llm/openai.adapter";
 export { WebhookAdapter } from "./llm/webhook.adapter";
 export { createAdapter } from "./llm/llm-factory";
 export type { BaseAdapter } from "./llm/base-adapter";
 
-// ─── UI Helpers (Internal) ──────────────────────────────────────────────────
+// ─── Components (Built-in) ───────────────────────────────────────────────────
+export * from "./components";
+
+// ─── UI Primitives ───────────────────────────────────────────────────────────
 export { Btn } from "./ui/Btn";
 export { InputField } from "./ui/InputField";
 
@@ -74,6 +80,3 @@ export type {
   InjectedProps,
   CallbackOverrides,
 } from "./types";
-
-// ─── Dev Utils ───────────────────────────────────────────────────────────────
-export { devLog } from "./utils/dev-log";

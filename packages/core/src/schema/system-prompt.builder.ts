@@ -9,8 +9,8 @@ export const buildSystemPrompt = (registry: ComponentRegistry, suffix?: string):
       const shape = def.propsSchema.shape as Record<string, unknown>;
       const propsDoc = Object.entries(shape)
         .map(([key, fieldSchema]) => {
-          const s = fieldSchema as { description?: string; _def?: { description?: string } };
-          const desc = s.description ?? s._def?.description ?? "any";
+          // Use public .description API if available (ZodType)
+          const desc = (fieldSchema as { description?: string }).description ?? "any";
           return `  - ${key}: ${desc}`;
         })
         .join("\n");

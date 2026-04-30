@@ -10,6 +10,7 @@ export type WireAIContextValue = {
   systemPromptSuffix?: string;
   initialMessages?: Message[];
   onMessage?: (message: Message) => void;
+  onThreadUpdate?: (messages: Message[]) => void;
   licenseKey?: string;
 };
 
