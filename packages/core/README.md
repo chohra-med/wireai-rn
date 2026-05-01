@@ -2,7 +2,7 @@
 
 **Wire your AI agent to native mobile UI.**
 
-Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No custom parsers. No prompt engineering. Works with Ollama, LM Studio, or any HTTP agent endpoint.
+Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No custom parsers. No prompt engineering. Works with Ollama, LM Studio, OpenAI, or any HTTP agent endpoint.
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![license](https://img.shields.io/npm/l/wireai-rn.svg)](https://github.com/chohra-med/wireai-rn/blob/main/LICENSE)
@@ -11,11 +11,56 @@ Open-source React Native SDK for generative UI — render interactive native com
 
 ## The Problem
 
-AI agents speak text. Mobile users expect native UI. Nothing bridges them in React Native.
+AI agents speak text. Mobile users expect native UI.
 
-Your agent works — it answers questions, follows instructions, produces useful output. But when someone asks for a mobile app, your options are: a text chat that feels like 2018, a WebView wrapper that feels cheap, or a custom UI that takes months.
+Your agent works — it answers questions, follows instructions, produces useful output. But in React Native you have three bad options: a text chat that feels like 2018, a WebView wrapper that feels cheap, or a custom UI that takes months.
 
-**WireAI fills this gap.** Register your components with a description and Zod schema. The agent decides which to render. WireAI validates the props and renders it natively.
+**WireAI fills this gap.** Register your components with a description and a Zod schema. The LLM picks which one to show. WireAI validates the props and renders it natively.
+
+---
+
+## How It Works
+
+```mermaid
+flowchart TD
+    A([User sends a message]) --> B[useWireAIThread]
+    B --> C["Build context\n(trim history to budget,\nprepend system prompt)"]
+    C --> D{LLM Adapter}
+    D --> |Ollama| E1[Local model]
+    D --> |LM Studio| E2[Local model]
+    D --> |OpenAI| E3[Cloud API]
+    D --> |Webhook| E4[Your backend]
+    E1 & E2 & E3 & E4 --> F["Raw JSON string\n{ action, component, props }"]
+    F --> G[validateLLMResponse]
+    G --> H{Props valid?}
+    H --> |Yes| I[ComponentRenderer]
+    H --> |No| J[FallbackMessage]
+    I --> K([Native component renders])
+    J --> K
+```
+
+---
+
+## How the LLM Chooses a Component
+
+WireAI auto-generates a system prompt from your registered components. The LLM reads it and decides which component fits the conversation.
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant WireAI
+    participant LLM
+
+    App->>WireAI: <WireAIProvider components={[MoodSelector, ActionCard, ...]}>
+    WireAI->>WireAI: Build system prompt from registry
+    Note over WireAI: "You have these components:\n- MoodSelector: use when...\n- ActionCard: use when..."
+
+    App->>WireAI: sendMessage("I feel tired today")
+    WireAI->>LLM: [system prompt] + [history] + [user message]
+    LLM-->>WireAI: { "action": "render", "component": "MoodSelector", "props": { ... } }
+    WireAI->>WireAI: Validate props with Zod schema
+    WireAI-->>App: <MoodSelector question="..." options={[...]} />
+```
 
 ---
 
@@ -23,17 +68,56 @@ Your agent works — it answers questions, follows instructions, produces useful
 
 ```bash
 npm install wireai-rn zod
+# or
+yarn add wireai-rn zod
 ```
+
+**Peer dependencies:**
+```json
+{
+  "react": ">=18.0.0",
+  "react-native": ">=0.73.0",
+  "zod": ">=3.22.0"
+}
+```
+
+> Zod v3 only. Zod v4 has breaking API changes.
 
 ---
 
-## Quickstart (3 minutes)
+## Step-by-Step Guide
 
-### 1. Wrap your app
+### Step 1 — Pick your LLM provider
+
+```mermaid
+flowchart LR
+    Dev(["🧑‍💻 You are..."])
+    Dev --> A{Environment}
+    A --> |Local dev, no API cost| B[Ollama]
+    A --> |Local dev, GUI preferred| C[LM Studio]
+    A --> |Best quality, cloud| D[OpenAI]
+    A --> |Production app| E[Webhook / Your backend]
+
+    B --> B1["provider: 'ollama'\nbaseUrl: 'http://localhost:11434'\nmodel: 'llama3'"]
+    C --> C1["provider: 'lmstudio'\nbaseUrl: 'http://localhost:1234'\nmodel: 'llama-3-8b-instruct'"]
+    D --> D1["provider: 'openai'\nmodel: 'gpt-4o-mini'\napiKey: '...' ← dev only!"]
+    E --> E1["provider: 'webhook'\nbaseUrl: 'https://api.yourapp.com/ai'\nmodel: 'gpt-4o'"]
+```
+
+| Provider | When to use | Cold start | Cost |
+|---|---|---|---|
+| **Ollama** | Local development, privacy | ~2s | Free |
+| **LM Studio** | Local development, GUI | ~2s | Free |
+| **OpenAI** | Best quality + zero setup | <1s | Pay per token |
+| **Webhook** | Production (server holds keys) | <1s | Your backend |
+
+---
+
+### Step 2 — Wrap your app
 
 ```tsx
 import { WireAIProvider } from "wireai-rn";
-import { defaultComponents } from "./components";
+import { defaultComponents } from "wireai-rn/components"; // 11 built-in components
 
 const LLM_CONFIG = {
   provider: "ollama" as const,
@@ -50,292 +134,539 @@ export default function App() {
 }
 ```
 
-### 2. Use the thread hook
+`WireAIProvider` does three things on mount:
+1. Registers all your components into an in-memory registry
+2. Builds the LLM system prompt from the registry (auto-generated, no manual prompt writing needed)
+3. Pings your LLM endpoint in `__DEV__` to confirm connectivity
+
+---
+
+### Step 3 — Build a chat screen
 
 ```tsx
-import { useWireAIThread, useWireAIInput, ComponentRenderer } from "wireai-rn";
+import {
+  useWireAIThread,
+  useWireAIInput,
+  useWireAIAction,
+  ComponentRenderer,
+  LoadingState,
+} from "wireai-rn";
+import type { Message } from "wireai-rn";
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  TextInput,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useRef, useEffect } from "react";
 
-function ChatScreen() {
-  const { messages, sendMessage, isLoading } = useWireAIThread();
+export function ChatScreen() {
+  const { messages, isLoading, error, sendMessage, abort } = useWireAIThread();
   const { inputText, setInputText, handleSubmit } = useWireAIInput(sendMessage);
+  const createCallbacks = useWireAIAction(sendMessage);
+  const listRef = useRef<FlatList>(null);
+
+  // Auto-scroll to newest message
+  useEffect(() => {
+    if (messages.length) {
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages.length]);
+
+  const renderItem = ({ item }: { item: Message }) => {
+    if (item.role === "user") {
+      return (
+        <View style={{ alignSelf: "flex-end", padding: 8, backgroundColor: "#6C47FF", borderRadius: 12, margin: 4 }}>
+          <Text style={{ color: "#fff" }}>{item.content}</Text>
+        </View>
+      );
+    }
+    if (item.role === "assistant" && item.response) {
+      return (
+        <ComponentRenderer
+          messageId={item.id}
+          response={item.response}
+          callbackOverrides={createCallbacks(item.id)}
+        />
+      );
+    }
+    return null;
+  };
 
   return (
-    <FlatList
-      data={messages}
-      renderItem={({ item }) =>
-        item.response?.action === "render" ? (
-          <ComponentRenderer
-            messageId={item.id}
-            response={item.response}
-          />
-        ) : (
-          <Text>{item.content}</Text>
-        )
-      }
-    />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        renderItem={renderItem}
+        contentContainerStyle={{ padding: 16 }}
+      />
+
+      {isLoading && <LoadingState />}
+      {error && <Text style={{ color: "red", padding: 8 }}>{error}</Text>}
+
+      <View style={{ flexDirection: "row", padding: 8, gap: 8 }}>
+        <TextInput
+          style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 8 }}
+          value={inputText}
+          onChangeText={setInputText}
+          onSubmitEditing={handleSubmit}
+          placeholder="Type a message..."
+          returnKeyType="send"
+        />
+        <TouchableOpacity
+          onPress={isLoading ? abort : handleSubmit}
+          style={{ padding: 8, backgroundColor: "#6C47FF", borderRadius: 8 }}
+        >
+          <Text style={{ color: "#fff" }}>{isLoading ? "Stop" : "Send"}</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 ```
 
-### 3. Register components
+**Hooks at a glance:**
 
-```tsx
-import { z } from "zod";
-import type { WireAIComponent } from "wireai-rn";
-
-const schema = z.object({
-  question: z.string().describe("Question to ask the user"),
-  options: z.array(z.string()).describe("3-6 selectable options"),
-});
-
-export const MoodSelector: WireAIComponent<typeof schema> = {
-  name: "MoodSelector",
-  description:
-    "Use when checking how the user is feeling. " +
-    "Ideal for opening a coaching session. " +
-    "Provide 4-6 warm, non-clinical mood labels.",
-  component: MoodSelectorView,
-  propsSchema: schema,
-};
+```mermaid
+flowchart LR
+    T[useWireAIThread] --> |messages, isLoading, error| UI
+    T --> |sendMessage, abort| UI
+    I[useWireAIInput] --> |inputText, setInputText, handleSubmit| UI
+    A[useWireAIAction] --> |createCallbacks| CR[ComponentRenderer]
+    UI --> CR
 ```
-
-**That's it.** The LLM now knows when and how to render your component.
 
 ---
 
-## How It Works
+### Step 4 — Register a custom component
 
-```
-Your AI Agent                    Your Mobile App
-(speaks JSON)    ←── WireAI ──→  (speaks React Native)
+Custom components give the LLM new capabilities specific to your app.
+
+```mermaid
+flowchart TD
+    S1["1. Define Zod schema\n(what props can the LLM send?)"]
+    S2["2. Write the React component\n(what does it render?)"]
+    S3["3. Write the description\n(when should the LLM use it?)"]
+    S4["4. Export as WireAIComponent\n(name + schema + component + description)"]
+    S5["5. Pass to WireAIProvider\ncomponents={[MyComponent, ...defaultComponents]}"]
+    S1 --> S2 --> S3 --> S4 --> S5
 ```
 
-1. **Register** your components with a name, description, and Zod schema
-2. WireAI **auto-generates** the LLM system prompt from your registry
-3. The agent returns JSON → WireAI **validates** every prop before rendering
-4. User interactions feed **back to the agent** as natural language
-5. The agent responds with the **next component** — the loop continues
+**Full example:**
+
+```tsx
+import React, { useCallback, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { z } from "zod";
+import { colors, spacing, radii, textStyles } from "wireai-rn";
+import type { WireAIComponent } from "wireai-rn";
+
+// 1. Schema — every field needs .describe() so the LLM knows what to fill in
+const schema = z.object({
+  question: z.string().describe("The mood check-in question, e.g. 'How are you feeling right now?'"),
+  options: z.array(z.string()).describe("4-6 mood labels, warm and non-clinical"),
+});
+
+// 2. React component
+const MoodSelectorView: React.FC<z.infer<typeof schema> & { onSelect?: (v: string) => void }> =
+  React.memo(({ question, options, onSelect }) => {
+    const [selected, setSelected] = useState<string | null>(null);
+
+    const handlePress = useCallback((opt: string) => {
+      if (selected) return; // one-shot: lock after first tap
+      setSelected(opt);
+      onSelect?.(opt);
+    }, [selected, onSelect]);
+
+    return (
+      <View style={styles.card}>
+        <Text style={styles.question}>{question}</Text>
+        {options.map((opt) => (
+          <Pressable
+            key={opt}
+            style={[styles.chip, selected === opt && styles.chipSelected]}
+            onPress={() => handlePress(opt)}
+            disabled={!!selected}
+          >
+            <Text style={[styles.chipText, selected === opt && styles.chipTextSelected]}>
+              {opt}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  });
+
+// 3 + 4. Export definition — description is a routing instruction for the LLM
+export const MoodSelector: WireAIComponent<typeof schema> = {
+  name: "MoodSelector",
+  description:
+    "Use when checking the user's current mood or emotional state at the start of a session. " +
+    "Provide 4-6 warm, non-clinical mood labels as options. " +
+    "Do NOT use for yes/no questions — use ConfirmPrompt instead.",
+  component: MoodSelectorView,
+  propsSchema: schema,
+};
+
+const styles = StyleSheet.create({
+  card: { padding: spacing.md, backgroundColor: colors.backgroundSecondary, borderRadius: radii.lg, gap: spacing.sm },
+  question: { ...textStyles.h4, color: colors.text },
+  chip: { padding: spacing.sm, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { color: colors.textSecondary },
+  chipTextSelected: { color: "#fff", fontWeight: "600" },
+});
+```
+
+Then pass it to the provider alongside the built-ins:
+
+```tsx
+<WireAIProvider components={[MoodSelector, ...defaultComponents]}>
+```
+
+**Component description writing rules:**
+
+| Do | Don't |
+|---|---|
+| `"Use when the user needs to pick a mood"` | `"A mood picker card"` |
+| `"Do NOT use for yes/no — use ConfirmPrompt"` | (no negative routing) |
+| `"Provide 4-6 options, warm and non-clinical"` | (no output guidelines) |
+| Reference other components by name | Reference your app's business logic |
+
+---
+
+### Step 5 — Add persistence (optional)
+
+Without persistence, conversations reset on every app restart. WireAI supports any storage backend through the `StorageBackend` interface.
+
+```mermaid
+flowchart TD
+    subgraph "On App Start"
+        A1[Load config from SecureStore] --> A2[Load history from MMKV]
+        A2 --> A3["<WireAIProvider initialMessages={history}>"]
+    end
+
+    subgraph "During Session"
+        B1[User sends message] --> B2[LLM responds]
+        B2 --> B3["onThreadUpdate(messages)"]
+        B3 --> B4[Save to MMKV]
+    end
+
+    subgraph "Config Change"
+        C1[User updates API key] --> C2["saveConfig(newConfig)"]
+        C2 --> C3[Saved to SecureStore]
+    end
+```
+
+**Install storage libraries:**
+
+```bash
+# API key + LLM config → iOS Keychain / Android Keystore
+npx expo install expo-secure-store
+
+# Conversation history → high-performance key-value store
+yarn add react-native-mmkv
+```
+
+**Create storage backends:**
+
+```ts
+// storage/secureStorageBackend.ts
+import * as SecureStore from "expo-secure-store";
+import type { StorageBackend } from "wireai-rn";
+
+export const secureStorageBackend: StorageBackend = {
+  getItem: (key) => SecureStore.getItemAsync(key),
+  setItem: (key, value) => SecureStore.setItemAsync(key, value),
+  deleteItem: (key) => SecureStore.deleteItemAsync(key),
+};
+```
+
+```ts
+// storage/mmkvHistoryStorage.ts
+import { MMKV } from "react-native-mmkv";
+import type { StorageBackend } from "wireai-rn";
+
+const store = new MMKV({ id: "chat-history" });
+
+export const mmkvHistoryStorage: StorageBackend = {
+  getItem: async (key) => store.getString(key) ?? null,
+  setItem: async (key, value) => store.set(key, value),
+  deleteItem: async (key) => store.delete(key),
+};
+```
+
+**Wire it all together:**
+
+```tsx
+import { useLLMConfigStorage, WireAIProvider } from "wireai-rn";
+import type { Message } from "wireai-rn";
+import { useCallback, useEffect, useState } from "react";
+import { secureStorageBackend } from "./storage/secureStorageBackend";
+import { mmkvHistoryStorage } from "./storage/mmkvHistoryStorage";
+
+const DEFAULT_CONFIG = { provider: "openai" as const, model: "gpt-4o-mini" };
+const HISTORY_KEY = "chat_history_v1";
+
+export function AppRoot() {
+  // Config — persisted in SecureStore
+  const { config, isLoaded, saveConfig } = useLLMConfigStorage(
+    secureStorageBackend,
+    DEFAULT_CONFIG
+  );
+
+  // History — loaded from MMKV on first mount
+  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  useEffect(() => {
+    mmkvHistoryStorage.getItem(HISTORY_KEY).then((raw) => {
+      if (raw) {
+        try { setInitialMessages(JSON.parse(raw)); } catch {}
+      }
+      setHistoryLoaded(true);
+    });
+  }, []);
+
+  // Stable callback — called with the full message array on every update
+  const handleThreadUpdate = useCallback((messages: Message[]) => {
+    mmkvHistoryStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
+  }, []);
+
+  if (!isLoaded || !historyLoaded) return null; // wait for storage reads
+
+  return (
+    <WireAIProvider
+      llm={config}
+      components={defaultComponents}
+      initialMessages={initialMessages}
+      onThreadUpdate={handleThreadUpdate}
+    >
+      <ChatScreen />
+    </WireAIProvider>
+  );
+}
+```
 
 ---
 
 ## Built-in Components (11)
 
-| Component | Use When |
-|---|---|
-| `ActionCard` | Offering 1–3 next-step options with a CTA button |
-| `ChipSelectCard` | Quick selection from 3–8 compact labels (moods, tags) |
-| `ConfirmPrompt` | Asking yes/no or confirming an action |
-| `ContentSelectCard` | Selecting from items with title + description |
-| `InfoList` | Displaying read-only key/value summary data |
-| `MessageBubble` | Showing a text chat message |
-| `NumberStepperCard` | Picking a number within a range (days, people) |
-| `SelectionCard` | Choosing one option from a short list with longer labels |
-| `StatusCard` | Showing success, error, or info status |
-| `StepList` | Displaying ordered steps or itinerary |
-| `TextInputCard` | Collecting free-text input (name, destination) |
+Import from `wireai-rn/components`. All are Zod-validated, `React.memo`-wrapped, and include submitted-state protection (no double-submit).
 
-All components use plain React Native primitives — no external styling library required.
-
----
-
-## Supported LLM Providers
-
-| Provider | Status | Setup |
+| Component | Use When | Key Props |
 |---|---|---|
-| **Ollama** | ✅ Free | `ollama serve` + `ollama pull llama3` |
-| **LM Studio** | ✅ Free | Load a model, start local server |
-| **Webhook** | ✅ Free | Any HTTP agent endpoint (LangChain, CrewAI, n8n, Flowise) |
-| **Custom** | ✅ Free | Any OpenAI-compatible API |
-| OpenAI | Coming in `@wireai/cloud` | API key required |
-| Anthropic | Coming in `@wireai/cloud` | API key required |
-| Gemini | Coming in `@wireai/cloud` | API key required |
-
-### Local LLM Setup (Ollama)
-
-```bash
-# 1. Install Ollama
-brew install ollama
-
-# 2. Pull a model
-ollama pull llama3
-
-# 3. Start the server
-ollama serve
-
-# 4. Configure WireAI
-const config = {
-  provider: "ollama",
-  baseUrl: "http://localhost:11434",  // Simulator
-  // baseUrl: "http://YOUR_IP:11434", // Physical device
-  model: "llama3",
-};
-```
-
-### Connect Any Agent (WebhookAdapter)
-
-```tsx
-// Connect your existing LangChain, CrewAI, or n8n agent
-const config = {
-  provider: "webhook",
-  baseUrl: "https://your-agent.example.com/api/chat",
-  model: "your-agent",
-};
-```
-
-Your agent receives `{ messages, model }` via POST and returns `{ content: "..." }`.
+| `ActionCard` | Offering 1–3 next-step CTA buttons | `title`, `actions[{ label, value }]` |
+| `ChipSelectCard` | Quick selection from compact labels (moods, tags, activities) | `question`, `options[]`, `multiSelect?` |
+| `ConfirmPrompt` | Binary yes/no decision before an action | `question`, `confirmLabel?`, `cancelLabel?` |
+| `ContentSelectCard` | Selecting from items with title + description | `title`, `items[{ title, description, value }]` |
+| `InfoList` | Displaying read-only key/value summary data | `title`, `items[{ label, value }]` |
+| `MessageBubble` | Standard text chat response | `message`, `sender?` |
+| `NumberStepperCard` | Picking a number within a range | `label`, `min`, `max`, `step?`, `defaultValue?` |
+| `SelectionCard` | Choosing one option from a list with longer labels | `title`, `options[{ label, value, description? }]` |
+| `StatusCard` | Success, error, or informational status display | `status`, `title`, `message?` |
+| `StepList` | Ordered steps or itinerary | `title`, `steps[]` |
+| `TextInputCard` | Collecting free-text input (name, goal, note) | `label`, `placeholder?`, `submitLabel?` |
 
 ---
 
-## Add Custom Components
-
-Every component needs:
-1. A **Zod schema** for props (only JSON-serializable — no functions)
-2. A **description** written as an LLM routing instruction
-3. The **React component** itself
+## LLM Provider Reference
 
 ```tsx
-import React, { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { z } from "zod";
-import type { WireAIComponent, InjectedProps } from "wireai-rn";
-
-const schema = z.object({
-  question: z.string().describe("The reflective question to ask"),
-  moods: z.array(z.string()).describe("4-6 mood options"),
-});
-
-type Props = z.infer<typeof schema> & InjectedProps & {
-  onSubmit?: (mood: string) => void;
-};
-
-const MoodCheckIn = React.memo(({ question, moods, onSubmit }: Props) => {
-  const [selected, setSelected] = useState<string | null>(null);
-
-  const handleSelect = useCallback((mood: string) => {
-    if (selected) return; // submitted-state pattern — no double-submit
-    setSelected(mood);
-    onSubmit?.(mood);
-  }, [selected, onSubmit]);
-
-  return (
-    <View style={styles.card}>
-      <Text style={styles.question}>{question}</Text>
-      <View style={styles.grid}>
-        {moods.map((mood) => (
-          <TouchableOpacity
-            key={mood}
-            style={[styles.btn, selected === mood && styles.btnSelected]}
-            onPress={() => handleSelect(mood)}
-            disabled={!!selected}
-          >
-            <Text style={styles.btnText}>{mood}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-});
-
-export const MoodCheckInDef: WireAIComponent<typeof schema> = {
-  name: "MoodCheckIn",
-  description:
-    "Use to ask the user how they are feeling. Show this at the start of " +
-    "a coaching session or when checking emotional state. " +
-    "Provide 4-6 warm, non-clinical mood options.",
-  component: MoodCheckIn,
-  propsSchema: schema,
+const config: LocalLLMConfig = {
+  provider: "ollama" | "lmstudio" | "openai" | "webhook",
+  baseUrl: "...",
+  model: "...",
+  apiKey?: "...",           // OpenAI / Webhook auth
+  timeoutMs?: 30000,        // default: 30s
+  temperature?: 0.7,        // default: 0.7
+  maxTokens?: 1024,         // default: 1024
 };
 ```
 
-### Component Best Practices
-
-- ✅ Use `React.memo` on every component
-- ✅ Use `useCallback` for all event handlers
-- ✅ Implement the **submitted-state pattern** (disable after first interaction)
-- ✅ Write descriptions as LLM routing instructions: `"Use when..."`, `"Ideal for..."`, `"Use X instead of Y when..."`
-- ✅ Add `.describe()` to every Zod field
-- ❌ Never put functions in the Zod schema — they come from `callbackOverrides`
+| Provider | Default base URL | Ping endpoint | Notes |
+|---|---|---|---|
+| `ollama` | `http://localhost:11434` | `GET /api/tags` | Physical device: use LAN IP |
+| `lmstudio` | `http://localhost:1234` | `GET /v1/models` | Start server in LM Studio first |
+| `openai` | `https://api.openai.com` | `GET /v1/models` | Strips `/v1` suffix if present in `baseUrl` |
+| `webhook` | _(required)_ | skipped | `POST /` with `{ messages, model }` |
 
 ---
 
-## API Reference
-
-### Provider
+## WireAIProvider Props
 
 ```tsx
 <WireAIProvider
-  llm={config}                    // Required — LLM connection config
-  components={components}          // Required — component registry array
-  maxContextMessages={20}          // Max messages in context window
-  maxContextChars={12000}          // Max chars (~3k tokens for 4k models)
-  systemPromptSuffix="You are..." // App-specific system prompt additions
-  initialMessages={[]}             // Pre-populate conversation
-  onMessage={(msg) => {}}          // Lifecycle hook for persistence/analytics
-  licenseKey="..."                 // Reserved for future premium features
+  llm={config}                      // Required — LLM connection config
+  components={components}            // Required — WireAIComponent[] registry
+  maxContextMessages={20}            // Max messages kept in context (default: 20)
+  maxContextChars={12000}            // Max chars in context (~3k tokens, default: 12000)
+  systemPromptSuffix="You are..."   // Append app-specific instructions to auto-generated prompt
+  initialMessages={[]}               // Pre-populate thread (e.g. from storage)
+  onMessage={(msg) => {}}            // Called with each new message (analytics hook)
+  onThreadUpdate={(msgs) => {}}      // Called with full thread on every update (persistence hook)
 >
   {children}
 </WireAIProvider>
 ```
 
-### Hooks
+---
 
-| Hook | Returns |
-|---|---|
-| `useWireAIThread()` | `{ messages, sendMessage, isLoading, error, reset, abort }` |
-| `useWireAIInput(sendMessage)` | `{ inputText, setInputText, handleSubmit }` |
-| `useWireAIAction(triggerAction, name)` | Callback factory for component interactions |
+## Hooks Reference
 
-### Renderer
+### `useWireAIThread()`
 
-```tsx
+```ts
+const {
+  messages,     // Message[] — full conversation history
+  isLoading,    // boolean — LLM request in flight
+  error,        // string | null — last error message
+  sendMessage,  // (text: string) => Promise<void>
+  abort,        // () => void — cancel in-flight request
+} = useWireAIThread();
+```
+
+### `useWireAIInput(sendMessage)`
+
+```ts
+const {
+  inputText,    // string — controlled input value
+  setInputText, // Dispatch<SetStateAction<string>>
+  handleSubmit, // () => void — trims + sends + clears input
+} = useWireAIInput(sendMessage);
+```
+
+### `useWireAIAction(sendMessage)`
+
+Returns a factory that creates callback props for interactive components.
+
+```ts
+const createCallbacks = useWireAIAction(sendMessage);
+
+// In renderItem:
 <ComponentRenderer
-  messageId={msg.id}
-  response={msg.response}
-  callbackOverrides={{ onSubmit: (v) => triggerAction("submitted", v) }}
+  messageId={item.id}
+  response={item.response}
+  callbackOverrides={createCallbacks(item.id)}
+  // ^ injects onSelect, onConfirm, onSubmit etc. that send messages back to the thread
 />
 ```
 
+### `useLLMConfigStorage(storage, defaultConfig)`
+
+```ts
+const {
+  config,       // LocalLLMConfig — current resolved config
+  isLoaded,     // boolean — false until storage read completes
+  saveConfig,   // (config: LocalLLMConfig) => Promise<void>
+  clearConfig,  // () => Promise<void> — resets to defaultConfig
+} = useLLMConfigStorage(storage, defaultConfig);
+```
+
+| Param | Type | Description |
+|---|---|---|
+| `storage` | `StorageBackend` | Any `{ getItem, setItem, deleteItem }` implementation |
+| `defaultConfig` | `LocalLLMConfig` | Fallback config if nothing is stored yet |
+
 ---
 
-## Design System
+## Context Budget
 
-WireAI ships with a design token system aligned with the [getwireai.com](https://getwireai.com) brand. Import tokens to style your custom components:
+WireAI automatically trims old messages when the conversation grows:
+
+```
+maxContextMessages = 20   ← drop oldest messages beyond this count
+maxContextChars = 12000   ← drop oldest messages beyond this char limit
+```
+
+The system prompt is always prepended fresh and is never trimmed. A dev warning fires at 80% utilization so you can tune before hitting limits.
 
 ```tsx
-import { colors, violet, ink, spacing, radii, textStyles } from "wireai-rn";
-
-// Dark mode tokens also available
-import { darkColors } from "wireai-rn";
+<WireAIProvider
+  maxContextMessages={30}  // increase for long sessions
+  maxContextChars={20000}  // increase for GPT-4o (128k context)
+>
 ```
 
 ---
 
-## A2UI Protocol
+## Security
 
-WireAI's component registry format (name + description + schema → JSON output) is architecturally aligned with [Google's A2UI v0.9 protocol](https://a2ui.org). Full A2UI compatibility is planned for v0.2.
+```mermaid
+flowchart LR
+    subgraph "❌ Never do this in production"
+        A["apiKey in app bundle"] --> B["Extractable from .ipa / .apk"]
+    end
+    subgraph "✅ Production pattern"
+        C["User authenticates to your server"] --> D["Your server holds the LLM API key"]
+        D --> E["provider: 'webhook'\nbaseUrl: 'https://api.yourapp.com/ai'"]
+    end
+```
+
+- **Local LLMs** (Ollama, LM Studio): no API key needed — safe for production if the model runs on the device or a private server
+- **Cloud LLMs in dev**: `apiKey` is fine in `__DEV__` mode, but WireAI logs a warning
+- **Cloud LLMs in production**: always use `WebhookAdapter` with a server-side proxy
 
 ---
 
-## What's Coming
+## Design Tokens
 
-| Feature | Version |
-|---|---|
-| Real token streaming | v0.2 (Pro) |
-| Cloud LLMs (OpenAI, Anthropic, Gemini) | v0.2 (Pro) |
-| Thread persistence (MMKV/SQLite) | v0.2 (Pro) |
-| A2UI protocol compatibility | v0.2 |
-| On-device LLM via `llama.rn` | v0.3 |
-| Component packs (Mental Health, Fitness) | v0.2 |
+Use these in your custom components to stay visually consistent with the built-ins:
+
+```tsx
+import { colors, spacing, radii, textStyles } from "wireai-rn";
+
+// Colors
+colors.primary          // #6C47FF — violet
+colors.text             // #0D0D14 — near-black
+colors.textSecondary    // #6B7280 — muted
+colors.backgroundSecondary // surface cards
+colors.border           // subtle stroke
+
+// Spacing
+spacing.xs   // 4
+spacing.sm   // 8
+spacing.md   // 16
+spacing.lg   // 24
+spacing.xl   // 32
+
+// Radii
+radii.sm     // 6
+radii.md     // 10
+radii.lg     // 16
+radii.full   // 999 (pill)
+
+// Text styles (spread into StyleSheet)
+textStyles.h3    // 20px semibold
+textStyles.h4    // 17px semibold
+textStyles.body  // 15px regular
+textStyles.small // 13px regular
+```
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+```bash
+git clone git@github.com:chohra-med/wireai-rn.git
+cd wireai-rn/packages/core
+yarn install
+yarn build    # ESM + CJS + .d.ts
+yarn test     # 23 tests
+yarn typecheck
+```
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for pull request guidelines.
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](../../LICENSE) for details.
 
 ---
 
