@@ -1,73 +1,77 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, spacing, radii, textStyles } from '../../styles/tokens';
+import React from "react";
+import type { ViewStyle } from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { colors, radii, spacing, textStyles } from "../../styles/tokens";
 
-interface ButtonProps {
+type ButtonVariant = "primary" | "outline" | "ghost";
+
+type ButtonProps = {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'outline' | 'ghost';
+  variant?: ButtonVariant;
   disabled?: boolean;
   style?: ViewStyle;
-}
+};
 
-export const Button: React.FC<ButtonProps> = ({
+const _Button: React.FC<ButtonProps> = ({
   title,
   onPress,
-  variant = 'primary',
-  disabled,
+  variant = "primary",
+  disabled = false,
   style,
-}) => {
-  const getButtonStyle = (): ViewStyle => {
-    switch (variant) {
-      case 'primary':
-        return { backgroundColor: disabled ? colors.disabled : colors.primary };
-      case 'outline':
-        return {
-          backgroundColor: 'transparent',
-          borderWidth: 1,
-          borderColor: disabled ? colors.disabled : colors.primary,
-        };
-      case 'ghost':
-        return { backgroundColor: 'transparent' };
-      default:
-        return {};
-    }
-  };
-
-  const getTextStyle = (): TextStyle => {
-    switch (variant) {
-      case 'primary':
-        return { color: colors.textInverse };
-      case 'outline':
-      case 'ghost':
-        return { color: disabled ? colors.textTertiary : colors.primary };
-      default:
-        return {};
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      style={[styles.base, getButtonStyle(), style]}
-      onPress={onPress}
-      disabled={disabled}
+}) => (
+  <TouchableOpacity
+    style={[
+      styles.base,
+      variantBtnStyles[variant],
+      disabled ? disabledBtnStyles[variant] : null,
+      style,
+    ]}
+    onPress={onPress}
+    disabled={disabled}
+    accessibilityRole="button"
+    accessibilityState={{ disabled }}
+  >
+    <Text
+      style={[
+        styles.text,
+        variantTextStyles[variant],
+        disabled ? styles.textDisabled : null,
+      ]}
     >
-      <Text style={[textStyles.body, styles.text, getTextStyle()]}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
-};
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
+
+export const Button = React.memo(_Button);
 
 const styles = StyleSheet.create({
   base: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  text: {
-    fontWeight: '600',
-  },
+  text: { ...textStyles.body, fontWeight: "600" as const },
+  textDisabled: { color: colors.textTertiary },
+});
+
+const variantBtnStyles = StyleSheet.create({
+  primary: { backgroundColor: colors.primary },
+  outline: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.primary },
+  ghost: { backgroundColor: "transparent" },
+});
+
+const disabledBtnStyles = StyleSheet.create({
+  primary: { backgroundColor: colors.disabled },
+  outline: { borderColor: colors.disabled },
+  ghost: {},
+});
+
+const variantTextStyles = StyleSheet.create({
+  primary: { color: colors.textInverse },
+  outline: { color: colors.primary },
+  ghost: { color: colors.primary },
 });

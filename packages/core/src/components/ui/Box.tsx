@@ -1,22 +1,23 @@
-import React from 'react';
-import { View, ViewProps, ViewStyle } from 'react-native';
-import { spacing } from '../../styles/tokens';
+import React from "react";
+import type { ViewProps, ViewStyle } from "react-native";
+import { View } from "react-native";
+import { spacing } from "../../styles/tokens";
 
-interface BoxProps extends ViewProps {
+type BoxProps = ViewProps & {
   padding?: keyof typeof spacing;
   margin?: keyof typeof spacing;
   gap?: keyof typeof spacing;
   flex?: number;
-  flexDirection?: ViewStyle['flexDirection'];
-  alignItems?: ViewStyle['alignItems'];
-  justifyContent?: ViewStyle['justifyContent'];
+  flexDirection?: ViewStyle["flexDirection"];
+  alignItems?: ViewStyle["alignItems"];
+  justifyContent?: ViewStyle["justifyContent"];
   backgroundColor?: string;
   borderRadius?: number;
   borderWidth?: number;
   borderColor?: string;
-}
+};
 
-export const Box: React.FC<BoxProps> = ({
+const _Box: React.FC<BoxProps> = ({
   children,
   style,
   padding,
@@ -52,3 +53,5 @@ export const Box: React.FC<BoxProps> = ({
     </View>
   );
 };
+
+export const Box = React.memo(_Box);

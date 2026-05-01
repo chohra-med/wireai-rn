@@ -1,31 +1,32 @@
-import React from 'react';
-import { Text, TextProps, TextStyle } from 'react-native';
-import { textStyles, colors } from '../../styles/tokens';
+import React, { useMemo } from "react";
+import type { TextProps, TextStyle } from "react-native";
+import { Text } from "react-native";
+import { colors, textStyles } from "../../styles/tokens";
 
-interface TypographyProps extends TextProps {
+type TypographyProps = TextProps & {
   variant?: keyof typeof textStyles;
   color?: string;
-  textAlign?: TextStyle['textAlign'];
-}
+  textAlign?: TextStyle["textAlign"];
+};
 
-export const Typography: React.FC<TypographyProps> = ({
+const _Typography: React.FC<TypographyProps> = ({
   children,
   style,
-  variant = 'body',
+  variant = "body",
   color = colors.text,
   textAlign,
   ...props
 }) => {
+  const dynamicStyle = useMemo<TextStyle>(
+    () => ({ color, textAlign }),
+    [color, textAlign]
+  );
+
   return (
-    <Text
-      style={[
-        textStyles[variant],
-        { color, textAlign },
-        style,
-      ]}
-      {...props}
-    >
+    <Text style={[textStyles[variant], dynamicStyle, style]} {...props}>
       {children}
     </Text>
   );
 };
+
+export const Typography = React.memo(_Typography);

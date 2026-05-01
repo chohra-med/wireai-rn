@@ -43,7 +43,6 @@ const _ActionCard: React.FC<Props> = ({
   const [submitted, setSubmitted] = useState(false);
 
   const handlePrimary = useCallback(() => {
-    console.log("[WireAI] ActionCard: handlePrimary", { primaryAction, primaryLabel, hasOnPrimaryPress: !!onPrimaryPress, hasOnPress: !!onPress, hasOnSubmit: !!onSubmit });
     if (!submitted) {
       setSubmitted(true);
       if (onPrimaryPress) onPrimaryPress();
