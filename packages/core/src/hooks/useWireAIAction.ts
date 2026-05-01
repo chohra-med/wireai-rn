@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { devLog } from "../utils/dev-log";
 
-type CallbackFactory = (messageId: string) => Record<string, (...args: any[]) => void>;
+type CallbackFactory = (messageId: string) => Record<string, (...args: unknown[]) => void>;
 
 /**
  * useWireAIAction provides a factory to create standard action callbacks
@@ -28,9 +28,9 @@ export const useWireAIAction = (sendMessage: (text: string) => void): CallbackFa
         devLog.info("action: selected", { messageId, value });
         sendMessage(`I selected: ${JSON.stringify(value)}`);
       },
-      onPress: (label: string) => {
+      onPress: (label: unknown) => {
         devLog.info("action: pressed", { messageId, label });
-        sendMessage(`I tapped: ${label}`);
+        sendMessage(`I tapped: ${String(label)}`);
       },
       onContinue: () => {
         devLog.info("action: continue", { messageId });

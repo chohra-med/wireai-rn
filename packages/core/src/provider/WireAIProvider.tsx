@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo } from "react";
-import type { z } from "zod";
 import { createComponentRegistry } from "../registry/component-registry";
 import { WireAIContext } from "../registry/registry-context";
 import type { WireAIComponent, LocalLLMConfig, Message } from "../types";
@@ -7,7 +6,7 @@ import { devLog } from "../utils/dev-log";
 
 type WireAIProviderProps = {
   llm: LocalLLMConfig;
-  components: WireAIComponent<z.ZodObject<z.ZodRawShape>>[];
+  components: WireAIComponent[];
   maxContextMessages?: number;
   maxContextChars?: number;
   /** Appended verbatim to the system prompt — use for app-specific instructions. */

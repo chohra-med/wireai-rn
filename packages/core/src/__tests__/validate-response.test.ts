@@ -1,4 +1,5 @@
 import { validateLLMResponse } from '../schema/validate-response';
+import type { WireAIAskResponse } from '../types';
 
 describe('validateLLMResponse', () => {
   it('should parse valid render response', () => {
@@ -38,14 +39,14 @@ describe('validateLLMResponse', () => {
       message: 'How are you?'
     });
 
-    const result = validateLLMResponse(input) as any;
+    const result = validateLLMResponse(input) as WireAIAskResponse;
     expect(result.action).toBe('ask');
     expect(result.message).toBe('How are you?');
   });
 
   it('should handle markdown code blocks', () => {
     const input = 'Here is the UI: \n```json\n{"action": "ask", "message": "test"}\n```';
-    const result = validateLLMResponse(input) as any;
+    const result = validateLLMResponse(input) as WireAIAskResponse;
     expect(result.action).toBe('ask');
     expect(result.message).toBe('test');
   });

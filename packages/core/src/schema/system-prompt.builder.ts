@@ -6,7 +6,7 @@ export const buildSystemPrompt = (registry: ComponentRegistry, suffix?: string):
   const componentDocs = Array.from(registry.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, def]) => {
-      const shape = def.propsSchema.shape as Record<string, unknown>;
+      const shape = (def.propsSchema as { shape?: Record<string, unknown> }).shape ?? {};
       const propsDoc = Object.entries(shape)
         .map(([key, fieldSchema]) => {
           // Use public .description API if available (ZodType)

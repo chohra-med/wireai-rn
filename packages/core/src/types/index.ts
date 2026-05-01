@@ -21,7 +21,7 @@ export type InjectedProps = {
   messageId: string;
 };
 
-export type WireAIComponent<T extends z.ZodObject<z.ZodRawShape>> = {
+export type WireAIComponent<T extends z.ZodTypeAny = z.ZodTypeAny> = {
   name: string;
   description: string;
   component: ComponentType<z.infer<T> & InjectedProps>;
