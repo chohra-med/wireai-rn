@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "npm"
-      - run: npm ci
-      - run: npm run typecheck --workspace=packages/core
-      - run: npm run test --workspace=packages/core
-      - run: npm run build --workspace=packages/core
+          node-version: 22
+          cache: "yarn"
+      - run: yarn install --frozen-lockfile
+      - run: yarn workspace wireai-rn typecheck
+      - run: yarn workspace wireai-rn test
+      - run: yarn workspace wireai-rn build
       - name: Verify dist output
         run: |
           test -f packages/core/dist/index.js || exit 1
