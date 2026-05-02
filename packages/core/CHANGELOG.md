@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.1.2
+## [0.1.3]
+
+### Fixed
+- `webhook.adapter.ts` — removed `reason` argument from `AbortController.abort()` calls; React Native's `globals.d.ts` declares `abort(): void` with no params, causing CI typecheck failures
+- `WireAIComponent` generic widened from `ZodObject<ZodRawShape>` to `ZodTypeAny`; Zod v3.25 changed internal `ZodObject` type params (`$strip`) breaking the old constraint
+- `useWireAIAction` — `onPress` callback now accepts `unknown` (was `string`); fixes `CallbackFactory` index signature incompatibility
+
+## [0.1.2]
 
 ### Fixed
 - `context-budget.ts` — removed false "system message" assumption; first user message no longer dropped from context

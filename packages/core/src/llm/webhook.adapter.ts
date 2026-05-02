@@ -49,9 +49,9 @@ export class WebhookAdapter {
     let timedOut = false;
     const timeoutId = setTimeout(() => {
       timedOut = true;
-      combined.abort("timeout");
+      combined.abort();
     }, this.timeoutMs);
-    signal?.addEventListener("abort", () => combined.abort(signal.reason));
+    signal?.addEventListener("abort", () => combined.abort());
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
