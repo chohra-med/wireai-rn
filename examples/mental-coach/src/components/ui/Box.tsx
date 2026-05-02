@@ -1,66 +1,73 @@
-import React from 'react';
-import { View, ViewProps, ViewStyle } from 'react-native';
-import { spacing } from 'wireai-rn';
+import React from "react";
+import type { ViewProps, ViewStyle } from "react-native";
+import { View } from "react-native";
+import { spacing } from "wireai-rn";
 
-interface BoxProps extends ViewProps {
+type BoxProps = ViewProps & {
   padding?: keyof typeof spacing;
+  paddingHorizontal?: keyof typeof spacing;
+  paddingVertical?: keyof typeof spacing;
   margin?: keyof typeof spacing;
+  marginHorizontal?: keyof typeof spacing;
+  marginVertical?: keyof typeof spacing;
   gap?: keyof typeof spacing;
   flex?: number;
-  flexDirection?: ViewStyle['flexDirection'];
-  alignItems?: ViewStyle['alignItems'];
-  justifyContent?: ViewStyle['justifyContent'];
+  flexDirection?: ViewStyle["flexDirection"];
+  alignItems?: ViewStyle["alignItems"];
+  alignSelf?: ViewStyle["alignSelf"];
+  justifyContent?: ViewStyle["justifyContent"];
   backgroundColor?: string;
   borderRadius?: number;
   borderWidth?: number;
+  borderTopWidth?: number;
+  borderBottomWidth?: number;
   borderColor?: string;
-  alignSelf?: ViewStyle['alignSelf'];
-  maxWidth?: ViewStyle['maxWidth'];
-  paddingHorizontal?: keyof typeof spacing;
-  paddingVertical?: keyof typeof spacing;
-  marginHorizontal?: keyof typeof spacing;
-  marginVertical?: keyof typeof spacing;
-}
+  maxWidth?: ViewStyle["maxWidth"];
+};
 
-export const Box: React.FC<BoxProps> = ({
+const _Box: React.FC<BoxProps> = ({
   children,
   style,
   padding,
+  paddingHorizontal,
+  paddingVertical,
   margin,
+  marginHorizontal,
+  marginVertical,
   gap,
   flex,
   flexDirection,
   alignItems,
+  alignSelf,
   justifyContent,
   backgroundColor,
   borderRadius,
   borderWidth,
+  borderTopWidth,
+  borderBottomWidth,
   borderColor,
-  alignSelf,
   maxWidth,
-  paddingHorizontal,
-  paddingVertical,
-  marginHorizontal,
-  marginVertical,
   ...props
 }) => {
   const boxStyle: ViewStyle = {
     padding: padding ? spacing[padding] : undefined,
-    margin: margin ? spacing[margin] : undefined,
     paddingHorizontal: paddingHorizontal ? spacing[paddingHorizontal] : undefined,
     paddingVertical: paddingVertical ? spacing[paddingVertical] : undefined,
+    margin: margin ? spacing[margin] : undefined,
     marginHorizontal: marginHorizontal ? spacing[marginHorizontal] : undefined,
     marginVertical: marginVertical ? spacing[marginVertical] : undefined,
     gap: gap ? spacing[gap] : undefined,
     flex,
     flexDirection,
     alignItems,
+    alignSelf,
     justifyContent,
     backgroundColor,
     borderRadius,
     borderWidth,
+    borderTopWidth,
+    borderBottomWidth,
     borderColor,
-    alignSelf,
     maxWidth,
   };
 
@@ -70,3 +77,5 @@ export const Box: React.FC<BoxProps> = ({
     </View>
   );
 };
+
+export const Box = React.memo(_Box);
