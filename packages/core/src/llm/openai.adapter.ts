@@ -1,6 +1,6 @@
 import type { LocalLLMConfig, Message } from "../types";
 import { devLog } from "../utils/dev-log";
-import type { BaseAdapter } from "./base-adapter";
+import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 export class OpenAIAdapter implements BaseAdapter {
   private readonly baseUrl: string;
@@ -118,5 +118,130 @@ export class OpenAIAdapter implements BaseAdapter {
       if (timedOut) throw new Error("OpenAI request timed out");
       throw err;
     }
+  }
+
+  /**
+   * Streaming variant — uses XMLHttpRequest because React Native's `fetch`
+   * does not expose `response.body` as a ReadableStream. The `onprogress`
+   * event fires as each chunk arrives, which we parse as SSE frames.
+   */
+  chatStream(
+    messages: ChatMessages,
+    onChunk: StreamOnChunk,
+    signal?: AbortSignal
+  ): Promise<void> {
+    if (!this.apiKey) {
+      return Promise.reject(
+        new Error("[WireAI] OpenAIAdapter: apiKey is required. Pass it via LocalLLMConfig.apiKey.")
+      );
+    }
+
+    const url = `${this.baseUrl}/v1/chat/completions`;
+    const timeoutMs = this.config.timeoutMs ?? 30000;
+
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      let lastResponseLength = 0;
+      let bufferedFrame = "";
+      let accumulated = "";
+      let timedOut = false;
+      let settled = false;
+
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        xhr.abort();
+      }, timeoutMs);
+
+      const onAbort = () => xhr.abort();
+      signal?.addEventListener("abort", onAbort);
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      const consumeFrames = (text: string): void => {
+        bufferedFrame += text;
+        // SSE frames are separated by a blank line.
+        const frames = bufferedFrame.split("\n\n");
+        bufferedFrame = frames.pop() ?? "";
+        for (const frame of frames) {
+          for (const line of frame.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const json = JSON.parse(payload) as {
+                choices?: { delta?: { content?: string } }[];
+              };
+              const delta = json.choices?.[0]?.delta?.content;
+              if (typeof delta === "string" && delta.length > 0) {
+                accumulated += delta;
+                onChunk(accumulated, false);
+              }
+            } catch {
+              // Ignore malformed frames — OpenAI occasionally emits keep-alives.
+            }
+          }
+        }
+      };
+
+      xhr.open("POST", url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.setRequestHeader("Authorization", `Bearer ${this.apiKey}`);
+      xhr.setRequestHeader("Accept", "text/event-stream");
+
+      xhr.onprogress = () => {
+        const newText = xhr.responseText.slice(lastResponseLength);
+        lastResponseLength = xhr.responseText.length;
+        if (newText) consumeFrames(newText);
+      };
+
+      xhr.onload = () => {
+        if (settled) return;
+        settled = true;
+        const tail = xhr.responseText.slice(lastResponseLength);
+        if (tail) consumeFrames(tail);
+        cleanup();
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error(`OpenAI error ${xhr.status}: ${xhr.responseText}`));
+          return;
+        }
+        onChunk(accumulated, true);
+        resolve();
+      };
+
+      xhr.onerror = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error("OpenAI stream network error"));
+      };
+
+      xhr.onabort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (timedOut) {
+          reject(new Error("OpenAI stream timed out"));
+        } else {
+          const err = new Error("Aborted");
+          err.name = "AbortError";
+          reject(err);
+        }
+      };
+
+      const body = {
+        model: this.config.model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature: this.config.temperature ?? 0.7,
+        max_tokens: this.config.maxTokens ?? 1024,
+        stream: true,
+        response_format: { type: "json_object" },
+      };
+
+      devLog.info(`OpenAI streaming request: ${url}`);
+      xhr.send(JSON.stringify(body));
+    });
   }
 }

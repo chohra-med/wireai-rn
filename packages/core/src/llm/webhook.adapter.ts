@@ -28,10 +28,11 @@
  * OR a plain string response body.
  */
 import type { LocalLLMConfig } from "../types";
+import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 type ChatMessage = { role: string; content: string };
 
-export class WebhookAdapter {
+export class WebhookAdapter implements BaseAdapter {
   private readonly url: string;
   private readonly model: string;
   private readonly timeoutMs: number;
@@ -124,5 +125,103 @@ export class WebhookAdapter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Streaming variant — XHR-based to read chunks as they arrive (RN's fetch
+   * does not expose `response.body` as a ReadableStream).
+   *
+   * Server contract: respond with `Transfer-Encoding: chunked`, writing the
+   * assistant's raw JSON output progressively. The adapter accumulates the
+   * full body and the SDK validates the final shape with the strict schema.
+   * If your server wraps the response in `{ content: ... }`, prefer the
+   * non-streaming `chat()` method or strip the wrapper server-side before
+   * streaming.
+   */
+  chatStream(
+    messages: ChatMessages,
+    onChunk: StreamOnChunk,
+    signal?: AbortSignal
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      let lastLen = 0;
+      let accumulated = "";
+      let timedOut = false;
+      let settled = false;
+
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        xhr.abort();
+      }, this.timeoutMs);
+
+      const onAbort = () => xhr.abort();
+      signal?.addEventListener("abort", onAbort);
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      xhr.open("POST", this.url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (this.apiKey) xhr.setRequestHeader("Authorization", `Bearer ${this.apiKey}`);
+
+      xhr.onprogress = () => {
+        const newText = xhr.responseText.slice(lastLen);
+        lastLen = xhr.responseText.length;
+        if (!newText) return;
+        accumulated += newText;
+        onChunk(accumulated, false);
+      };
+
+      xhr.onload = () => {
+        if (settled) return;
+        settled = true;
+        const tail = xhr.responseText.slice(lastLen);
+        if (tail) accumulated += tail;
+        cleanup();
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(
+            new Error(`[WireAI] Webhook returned HTTP ${xhr.status}: ${accumulated}`)
+          );
+          return;
+        }
+        onChunk(accumulated, true);
+        resolve();
+      };
+
+      xhr.onerror = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(
+          new Error(
+            `[WireAI] Cannot connect to webhook at ${this.url}. ` +
+              `Make sure your agent server is running and accessible.`
+          )
+        );
+      };
+
+      xhr.onabort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (timedOut) {
+          reject(
+            new Error(
+              `[WireAI] Webhook did not respond within ${this.timeoutMs}ms. ` +
+                `Check that your agent at ${this.url} is running.`
+            )
+          );
+        } else {
+          const err = new Error("Aborted");
+          err.name = "AbortError";
+          reject(err);
+        }
+      };
+
+      xhr.send(JSON.stringify({ messages, model: this.model }));
+    });
   }
 }

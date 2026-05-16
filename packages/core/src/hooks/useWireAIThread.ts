@@ -6,8 +6,11 @@ import type { BaseAdapter } from "../llm/base-adapter";
 import { useWireAIContext } from "../registry/registry-context";
 import { buildSystemPrompt } from "../schema/system-prompt.builder";
 import { validateLLMResponse } from "../schema/validate-response";
-import type { Message } from "../types";
+import { WireAIPartialResponseSchema } from "../schema/wireai-response.schema";
+import { clearStream, pushStream } from "../streaming/streamStore";
+import type { Message, WireAIResponse } from "../types";
 import { trimToContextBudget } from "../utils/context-budget";
+import { parsePartialJson } from "../utils/parse-partial-json";
 
 export type SendMessageOptions = {
   /** When true, aborts any in-flight request instead of silently dropping the message. */
@@ -33,6 +36,7 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
     initialMessages,
     onMessage,
     onThreadUpdate,
+    streaming,
   } = useWireAIContext();
 
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
@@ -70,6 +74,13 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
+
+  const maxContextMessagesRef = useRef(maxContextMessages);
+  const maxContextCharsRef = useRef(maxContextChars);
+  useEffect(() => {
+    maxContextMessagesRef.current = maxContextMessages;
+    maxContextCharsRef.current = maxContextChars;
+  }, [maxContextMessages, maxContextChars]);
 
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -110,11 +121,13 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      const assistantId = `assistant_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
       const run = async () => {
         const adapter = adapterRef.current!;
         const systemPrompt = systemPromptRef.current;
 
-        const budgeted = trimToContextBudget(nextMessages, maxContextMessages, maxContextChars);
+        const budgeted = trimToContextBudget(nextMessages, maxContextMessagesRef.current, maxContextCharsRef.current);
         const apiMessages = [
           { role: "system" as const, content: systemPrompt },
           ...budgeted.map((m) => ({ role: m.role, content: m.content })),
@@ -125,8 +138,80 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           model: llmConfig.model,
           messageCount: apiMessages.length,
           lastUserMsg: budgeted.at(-1)?.content,
+          streaming: streaming && typeof adapter.chatStream === "function",
         });
 
+        // Streaming path — only when enabled AND the adapter implements chatStream.
+        if (streaming && typeof adapter.chatStream === "function") {
+          // Insert a placeholder assistant message immediately so the UI can
+          // mount a streaming bubble bound to `assistantId`.
+          const placeholder: Message = {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            isStreaming: true,
+            timestamp: Date.now(),
+          };
+          setMessages((prev) => [...prev, placeholder]);
+
+          let finalRaw = "";
+          await adapter.chatStream(
+            apiMessages,
+            (accumulated: string, isDone: boolean) => {
+              if (requestId !== requestIdRef.current) return;
+              finalRaw = accumulated;
+              if (isDone) return; // final write happens below, after strict validate
+              const partial = parsePartialJson(accumulated);
+              if (!partial) return;
+              const loose = WireAIPartialResponseSchema.safeParse(partial.parsed);
+              if (!loose.success) return;
+              const data = loose.data;
+              if (data.action !== "render" || !data.component) return;
+              if (!registry.has(data.component)) return;
+              pushStream(assistantId, {
+                response: {
+                  action: "render",
+                  component: data.component,
+                  props: data.props ?? {},
+                  message: data.message,
+                } as WireAIResponse,
+                isStreaming: true,
+              });
+            },
+            controller.signal
+          );
+
+          if (requestId !== requestIdRef.current) return;
+
+          devLog.info(`LLM streaming response complete`, { raw: finalRaw });
+
+          const response = validateLLMResponse(finalRaw, registry);
+          devLog.info(`parsed response`, {
+            action: response.action,
+            component: (response as { component?: string }).component,
+          });
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: finalRaw, response, isStreaming: false, timestamp: Date.now() }
+                : m
+            )
+          );
+          clearStream(assistantId);
+          // Notify with the finalized message.
+          onMessageRef.current?.({
+            id: assistantId,
+            role: "assistant",
+            content: finalRaw,
+            response,
+            isStreaming: false,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+
+        // Non-streaming path — unchanged behavior.
         const raw = await adapter.chat(apiMessages, controller.signal);
 
         if (requestId !== requestIdRef.current) return;
@@ -140,7 +225,7 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
         });
 
         const assistantMsg: Message = {
-          id: `assistant_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          id: assistantId,
           role: "assistant",
           content: raw,
           response,
@@ -153,6 +238,10 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
 
       run()
         .catch((err: unknown) => {
+          // Make sure no streaming state lingers if we bail out.
+          clearStream(assistantId);
+          // Drop the placeholder so the user doesn't see an empty streaming bubble.
+          setMessages((prev) => prev.filter((m) => !(m.id === assistantId && m.isStreaming)));
           if (err instanceof Error && err.name === "AbortError") return;
           if (requestId !== requestIdRef.current) return;
           devLog.error("sendMessage failed", err instanceof Error ? err : new Error(String(err)));
@@ -165,15 +254,18 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           }
         });
     },
-    [llmConfig, registry, maxContextMessages, maxContextChars, systemPromptSuffix]
+    [registry, llmConfig.provider, llmConfig.model]
   );
 
   const reset = useCallback(() => {
     abortControllerRef.current?.abort();
+    // Re-create the adapter so per-session state (e.g. A2A contextId) is cleared
+    // along with the message history.
+    adapterRef.current = createAdapter(llmConfig);
     setMessages(initialMessages ?? []);
     setIsLoading(false);
     setError(null);
-  }, [initialMessages]);
+  }, [initialMessages, llmConfig]);
 
   const abort = useCallback(() => {
     abortControllerRef.current?.abort();

@@ -12,6 +12,8 @@ export type WireAIContextValue = {
   onMessage?: (message: Message) => void;
   onThreadUpdate?: (messages: Message[]) => void;
   licenseKey?: string;
+  /** When true (default), useWireAIThread prefers chatStream if the adapter supports it. */
+  streaming: boolean;
 };
 
 export const WireAIContext = createContext<WireAIContextValue | null>(null);

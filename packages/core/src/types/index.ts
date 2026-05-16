@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { z } from "zod";
 
 export type WireAIRenderResponse = {
@@ -17,8 +17,26 @@ export type WireAIAskResponse = {
 
 export type WireAIResponse = WireAIRenderResponse | WireAIAskResponse;
 
+/**
+ * Loose runtime shape for a nested component reference inside another
+ * component's props. The full Zod schema lives in `schema/node-ref.schema.ts`.
+ */
+export type WireAINodeRef = {
+  component: string;
+  props?: Record<string, unknown>;
+};
+
 export type InjectedProps = {
   messageId: string;
+  /**
+   * Renders a child `WireAINodeRef` ad-hoc. Useful when a container needs to
+   * lay children out in slots that the SDK can't auto-detect. The renderer
+   * already pre-renders any `NodeRefSchema` arrays in props into `ReactNode[]`,
+   * so most containers don't need this helper.
+   */
+  renderNode?: (child: WireAINodeRef) => ReactNode;
+  /** True while the parent message is still streaming. Optional UI hint. */
+  isStreaming?: boolean;
 };
 
 export type WireAIComponent<T extends z.ZodTypeAny = z.ZodTypeAny> = {
@@ -30,7 +48,7 @@ export type WireAIComponent<T extends z.ZodTypeAny = z.ZodTypeAny> = {
 };
 
 export type LocalLLMConfig = {
-  provider: "ollama" | "lmstudio" | "openai" | "webhook" | "custom";
+  provider: "ollama" | "lmstudio" | "openai" | "webhook" | "custom" | "a2a";
   baseUrl: string;
   model: string;
   apiKey?: string;
@@ -46,7 +64,53 @@ export type Message = {
   role: MessageRole;
   content: string;
   response?: WireAIResponse;
+  /** True while the assistant message is still being streamed. */
+  isStreaming?: boolean;
   timestamp: number;
 };
 
 export type CallbackOverrides = Record<string, (...args: unknown[]) => void>;
+
+// ─── A2A Internal Types ───────────────────────────────────────────────────────
+
+export type A2ATaskState =
+  | "SUBMITTED" | "WORKING" | "COMPLETED" | "FAILED"
+  | "CANCELED" | "INPUT_REQUIRED" | "REJECTED"
+  // v0.3 compat (lowercase)
+  | "submitted" | "working" | "completed" | "failed"
+  | "canceled" | "input-required" | "rejected";
+
+export type A2APart = {
+  text?: string;
+  data?: Record<string, unknown>;
+  mimeType?: string;
+  url?: string;
+  raw?: string;
+  content?: string; // v0.3 compat
+};
+
+export type A2AMessage = {
+  role: "user" | "agent" | "assistant"; // assistant = v0.3 compat
+  parts: A2APart[];
+};
+
+export type A2ATask = {
+  id: string;
+  contextId?: string;
+  status: { state: A2ATaskState; message?: string };
+  messages?: A2AMessage[];
+  artifacts?: { parts: A2APart[] }[];
+};
+
+export type A2AJsonRpcResponse = {
+  jsonrpc: "2.0";
+  id: string | number;
+  result?: A2ATask;
+  error?: { code: number; message: string };
+};
+
+export type A2AAgentCard = {
+  name: string;
+  url: string;
+  capabilities?: { streaming?: boolean };
+};

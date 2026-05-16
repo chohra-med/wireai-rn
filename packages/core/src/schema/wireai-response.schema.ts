@@ -17,6 +17,20 @@ export const WireAIResponseSchema = z.discriminatedUnion("action", [
   WireAIAskResponseSchema,
 ]);
 
+/**
+ * Loose schema used during streaming, before the full payload has arrived.
+ * Every field that may be missing mid-stream is optional. The strict schema
+ * (`WireAIResponseSchema`) is re-applied once the stream completes.
+ */
+export const WireAIPartialResponseSchema = z.object({
+  action: z.enum(["render", "ask"]).optional(),
+  component: z.string().optional(),
+  props: z.record(z.string(), z.unknown()).optional(),
+  message: z.string().optional(),
+});
+
+export type WireAIPartialResponse = z.infer<typeof WireAIPartialResponseSchema>;
+
 export const WIREAI_JSON_SCHEMA = {
   type: "object",
   properties: {

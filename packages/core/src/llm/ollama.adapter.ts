@@ -1,5 +1,5 @@
 import type { LocalLLMConfig, Message } from "../types";
-import type { BaseAdapter } from "./base-adapter";
+import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 export class OllamaAdapter implements BaseAdapter {
   constructor(private config: LocalLLMConfig) {}
@@ -77,5 +77,82 @@ export class OllamaAdapter implements BaseAdapter {
       if (timedOut) throw new Error("Ollama request timed out");
       throw err;
     }
+  }
+
+  chatStream(messages: ChatMessages, onChunk: StreamOnChunk, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeoutMs = this.config.timeoutMs ?? 30000;
+      let accumulated = "";
+      let timedOut = false;
+
+      const xhr = new XMLHttpRequest();
+      let cursor = 0;
+
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        xhr.abort();
+      }, timeoutMs);
+
+      signal?.addEventListener("abort", () => xhr.abort());
+
+      xhr.open("POST", `${this.config.baseUrl}/api/chat`, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+
+      xhr.onprogress = () => {
+        // Parse newly arrived NDJSON lines since the last cursor position.
+        const chunk = xhr.responseText.slice(cursor);
+        cursor = xhr.responseText.length;
+
+        for (const line of chunk.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as {
+              message?: { content?: string };
+              done?: boolean;
+            };
+            if (parsed.message?.content) {
+              accumulated += parsed.message.content;
+              onChunk(accumulated, false);
+            }
+          } catch {
+            // partial line — will be retried on next onprogress
+          }
+        }
+      };
+
+      xhr.onload = () => {
+        clearTimeout(timeoutId);
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error(`Ollama error ${xhr.status}: ${xhr.responseText.slice(0, 200)}`));
+          return;
+        }
+        onChunk(accumulated, true);
+        resolve();
+      };
+
+      xhr.onerror = () => {
+        clearTimeout(timeoutId);
+        reject(timedOut ? new Error("Ollama request timed out") : new Error("Ollama network error"));
+      };
+
+      xhr.onabort = () => {
+        clearTimeout(timeoutId);
+        reject(new Error("Ollama request aborted"));
+      };
+
+      xhr.send(
+        JSON.stringify({
+          model: this.config.model,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          stream: true,
+          format: "json",
+          options: {
+            temperature: this.config.temperature ?? 0.7,
+            num_predict: this.config.maxTokens ?? 1024,
+          },
+        })
+      );
+    });
   }
 }

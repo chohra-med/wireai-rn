@@ -19,6 +19,11 @@ type WireAIProviderProps = {
   onThreadUpdate?: (messages: Message[]) => void;
   /** Reserved for future paid-tier validation. Has no effect in v0.x. */
   licenseKey?: string;
+  /**
+   * Enable token-level streaming when the adapter supports it (default: true).
+   * Set to false to always use the blocking chat() path for all adapters.
+   */
+  streaming?: boolean;
   children: React.ReactNode;
 };
 
@@ -32,6 +37,7 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
   onMessage,
   onThreadUpdate,
   licenseKey,
+  streaming = true,
   children,
 }) => {
   const componentKey = components.map((c) => c.name).join("|||");
@@ -53,8 +59,11 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
         );
       }
 
-      // 2. Registry size warning
-      if (registry.size > 10) {
+      // 2. Registry size warning — only relevant for on-device / small models.
+      // Cloud providers (OpenAI, A2A, webhook) handle larger registries fine.
+      const isLocalProvider =
+        llm.provider !== "openai" && llm.provider !== "a2a" && llm.provider !== "webhook";
+      if (isLocalProvider && registry.size > 10) {
         devLog.warn(
           `Registry has ${registry.size} components. Local models (Llama 3, Phi-3) ` +
             "work best with < 10 components. Performance may degrade."
@@ -87,7 +96,7 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
 
       checkConnection();
     }
-  }, [llm.baseUrl, llm.apiKey, registry.size]);
+  }, [llm.baseUrl, llm.apiKey, llm.provider, registry.size]);
 
   const contextValue = useMemo(
     () => ({
@@ -100,8 +109,9 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
       onMessage,
       onThreadUpdate,
       licenseKey,
+      streaming,
     }),
-    [registry, llm, maxContextMessages, maxContextChars, systemPromptSuffix, initialMessages, onMessage, onThreadUpdate, licenseKey]
+    [registry, llm, maxContextMessages, maxContextChars, systemPromptSuffix, initialMessages, onMessage, onThreadUpdate, licenseKey, streaming]
   );
 
   return <WireAIContext.Provider value={contextValue}>{children}</WireAIContext.Provider>;

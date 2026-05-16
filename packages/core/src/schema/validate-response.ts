@@ -1,7 +1,51 @@
 import type { WireAIResponse } from "../types";
 import type { ComponentRegistry } from "../registry/component-registry";
 import { extractJson } from "../utils/extract-json";
+import { isNodeRefArray } from "./node-ref.schema";
 import { WireAIResponseSchema } from "./wireai-response.schema";
+
+/** Per-node nesting cap. Mirrors the renderer guard so errors surface uniformly. */
+export const MAX_NODE_DEPTH = 8;
+
+const validateNode = (
+  node: { component?: unknown; props?: unknown },
+  registry: ComponentRegistry,
+  path: string,
+  depth: number
+): void => {
+  if (depth > MAX_NODE_DEPTH) {
+    throw new Error(
+      `LLM_SCHEMA_ERROR: at ${path}: nesting depth exceeds ${MAX_NODE_DEPTH}`
+    );
+  }
+
+  const name = node.component;
+  if (typeof name !== "string" || !name) {
+    throw new Error(`LLM_SCHEMA_ERROR: at ${path}: missing "component" name`);
+  }
+
+  const def = registry.get(name);
+  if (!def) {
+    throw new Error(`COMPONENT_NOT_FOUND: at ${path}: ${name}`);
+  }
+
+  const rawProps = (node.props ?? {}) as Record<string, unknown>;
+  const parsed = def.propsSchema.safeParse(rawProps);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`LLM_SCHEMA_ERROR: at ${path}(${name}): ${issues}`);
+  }
+
+  for (const [key, value] of Object.entries(rawProps)) {
+    if (isNodeRefArray(value)) {
+      value.forEach((child, i) => {
+        validateNode(child, registry, `${path}(${name}).${key}[${i}]`, depth + 1);
+      });
+    }
+  }
+};
 
 export const validateLLMResponse = (
   raw: string,
@@ -44,8 +88,12 @@ export const validateLLMResponse = (
 
   const response = result.data;
 
-  if (response.action === "render" && registry && !registry.has(response.component)) {
-    throw new Error(`COMPONENT_NOT_FOUND: ${response.component}`);
+  if (response.action === "render") {
+    if (registry) {
+      validateNode(response, registry, "root", 0);
+    } else if (!response.component) {
+      throw new Error(`COMPONENT_NOT_FOUND: missing component name`);
+    }
   }
 
   return response as WireAIResponse;

@@ -29,4 +29,11 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt(mockRegistry, 'Extra instruction.');
     expect(prompt).toContain('Extra instruction.');
   });
+
+  it('documents composition / nested children rules', () => {
+    const prompt = buildSystemPrompt(mockRegistry);
+    expect(prompt).toContain('Composition');
+    expect(prompt).toContain('children');
+    expect(prompt).toMatch(/depth.+8/i);
+  });
 });
