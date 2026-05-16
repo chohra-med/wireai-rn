@@ -1,5 +1,6 @@
 import type { LocalLLMConfig } from "../types";
 import type { BaseAdapter } from "./base-adapter";
+import { A2AAdapter } from "./a2a.adapter";
 import { LMStudioAdapter } from "./lmstudio.adapter";
 import { OllamaAdapter } from "./ollama.adapter";
 import { OpenAIAdapter } from "./openai.adapter";
@@ -18,10 +19,12 @@ export const createAdapter = (config: LocalLLMConfig): BaseAdapter => {
     case "custom":
       // Custom uses the LM Studio adapter (OpenAI-compatible endpoint)
       return new LMStudioAdapter(config);
+    case "a2a":
+      return new A2AAdapter(config);
     default:
       throw new Error(
         `[WireAI] Unknown LLM provider: "${(config as LocalLLMConfig).provider}". ` +
-          'Valid options: "ollama" | "lmstudio" | "webhook" | "custom"'
+          'Valid options: "ollama" | "lmstudio" | "openai" | "webhook" | "custom" | "a2a"'
       );
   }
 };

@@ -40,6 +40,8 @@ export type { ComponentRegistry, RegistryEntry } from "./registry/component-regi
 // ─── Schema (advanced use) ───────────────────────────────────────────────────
 export { validateLLMResponse, MAX_NODE_DEPTH } from "./schema/validate-response";
 export { buildSystemPrompt } from "./schema/system-prompt.builder";
+export { buildAgentCard } from "./schema/agent-card.builder";
+export type { AgentCardInfo } from "./schema/agent-card.builder";
 export {
   WireAIResponseSchema,
   WireAIRenderResponseSchema,
@@ -56,6 +58,7 @@ export { OllamaAdapter } from "./llm/ollama.adapter";
 export { LMStudioAdapter } from "./llm/lmstudio.adapter";
 export { OpenAIAdapter } from "./llm/openai.adapter";
 export { WebhookAdapter } from "./llm/webhook.adapter";
+export { A2AAdapter } from "./llm/a2a.adapter";
 export { createAdapter } from "./llm/llm-factory";
 export type { BaseAdapter, ChatMessages, StreamOnChunk } from "./llm/base-adapter";
 
