@@ -166,7 +166,7 @@ const ConfigPanel: React.FC<{
 
 const ChatUI: React.FC<{ onSettings: () => void }> = ({ onSettings }: { onSettings: () => void }) => {
   const { messages, isLoading, error, sendMessage, abort } = useWireAIThread();
-  const { inputText, setInputText, handleSubmit } = useWireAIInput(sendMessage);
+  const { inputRef, inputText, setInputText, handleSubmit } = useWireAIInput(sendMessage);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -273,8 +273,9 @@ const ChatUI: React.FC<{ onSettings: () => void }> = ({ onSettings }: { onSettin
       {/* Input bar */}
       <View style={chat.inputBar}>
         <TextInput
+          ref={inputRef}
           style={chat.input}
-          value={inputText}
+          defaultValue=""
           onChangeText={setInputText}
           placeholder="Type a message..."
           placeholderTextColor={colors.textSecondary}

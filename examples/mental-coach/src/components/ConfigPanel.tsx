@@ -5,7 +5,7 @@ import { colors, spacing } from "wireai-rn";
 import type { LocalLLMConfig } from "wireai-rn";
 import { Box } from "./ui/Box";
 
-type Provider = "ollama" | "lmstudio" | "openai";
+type Provider = "ollama" | "lmstudio" | "openai" | "a2a";
 
 const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"] as const;
 
@@ -13,12 +13,14 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   openai: "OpenAI",
   ollama: "Ollama",
   lmstudio: "LM Studio",
+  a2a: "A2A Agent",
 };
 
 const DEFAULTS: Record<Provider, { baseUrl: string; model: string }> = {
   ollama: { baseUrl: "http://localhost:11434", model: "llama3" },
   lmstudio: { baseUrl: "http://localhost:1234", model: "llama-3-8b-instruct" },
   openai: { baseUrl: "https://api.openai.com", model: "gpt-4o-mini" },
+  a2a: { baseUrl: "https://your-a2a-agent.example.com/a2a", model: "mental-coach-agent" },
 };
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -51,13 +53,27 @@ const ModelBtn = React.memo(_ModelBtn);
 
 // ─── ConfigPanel ─────────────────────────────────────────────────────────────
 
+type ScreenName = "Chat" | "Composed Demo";
+
 type ConfigPanelProps = {
   config: LocalLLMConfig;
   onSave: (config: LocalLLMConfig) => void;
   onClearHistory: () => void;
+  /** Active drawer screen — used to highlight the current tab. */
+  activeScreen?: ScreenName;
+  /** Called when the user picks a different screen from the drawer. */
+  onNavigate?: (screen: ScreenName) => void;
 };
 
-const _ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onSave, onClearHistory }) => {
+const SCREENS: ScreenName[] = ["Chat", "Composed Demo"];
+
+const _ConfigPanel: React.FC<ConfigPanelProps> = ({
+  config,
+  onSave,
+  onClearHistory,
+  activeScreen,
+  onNavigate,
+}) => {
   const [provider, setProvider] = useState<Provider>(config.provider as Provider);
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
   const [model, setModel] = useState(config.model);
@@ -99,10 +115,30 @@ const _ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onSave, onClearHisto
           <Image source={require("../../assets/logo.webp")} style={s.logo} resizeMode="contain" />
           <Text style={s.title}>AI Settings</Text>
         </Box>
+
+        {onNavigate ? (
+          <View style={s.screenSwitcher}>
+            {SCREENS.map((name) => {
+              const isActive = activeScreen === name;
+              return (
+                <Pressable
+                  key={name}
+                  style={[s.screenBtn, isActive ? s.screenBtnActive : null]}
+                  onPress={() => onNavigate(name)}
+                >
+                  <Text style={[s.screenBtnText, isActive ? s.screenBtnTextActive : null]}>
+                    {name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
         <Text style={s.subtitle}>Configure your AI provider for this session.</Text>
 
         <View style={s.tabs}>
-          {(["openai", "ollama", "lmstudio"] as Provider[]).map((p) => (
+          {(["openai", "ollama", "lmstudio", "a2a"] as Provider[]).map((p) => (
             <ProviderTab key={p} provider={p} isActive={provider === p} onSelect={handlePickProvider} />
           ))}
         </View>
@@ -149,6 +185,43 @@ const _ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onSave, onClearHisto
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="none"
             />
+          </View>
+        ) : null}
+
+        {provider === "a2a" ? (
+          <View style={s.section}>
+            <Text style={s.label}>Agent URL</Text>
+            <TextInput
+              style={s.input}
+              value={baseUrl}
+              onChangeText={setBaseUrl}
+              placeholder="https://your-a2a-agent.example.com/a2a"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            <Text style={s.label}>Agent ID / Model</Text>
+            <TextInput
+              style={s.input}
+              value={model}
+              onChangeText={setModel}
+              placeholder="mental-coach-agent"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+            />
+            <Text style={s.label}>API Key (optional)</Text>
+            <TextInput
+              style={s.input}
+              value={apiKey}
+              onChangeText={setApiKey}
+              placeholder="Bearer token — leave empty if agent is public"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+              secureTextEntry
+            />
+            <Text style={s.a2aHint}>
+              Connect to any A2A-compatible agent. The agent must return wireai-rn JSON format.
+            </Text>
           </View>
         ) : null}
 
@@ -221,4 +294,23 @@ const s = StyleSheet.create({
   },
   clearText: { color: colors.textSecondary, fontWeight: "600" as const, fontSize: 13 },
   errorText: { color: colors.error, fontSize: 12, marginBottom: 12, fontWeight: "600" as const, textAlign: "center" },
+  a2aHint: { fontSize: 12, color: colors.textSecondary, fontWeight: "400" as const, marginTop: 4 },
+  screenSwitcher: {
+    flexDirection: "row",
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 10,
+    padding: 2,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  screenBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
+  screenBtnActive: {
+    backgroundColor: colors.primary,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  screenBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "600" as const },
+  screenBtnTextActive: { color: "#fff" },
 });

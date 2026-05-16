@@ -1,6 +1,6 @@
 import React from "react";
-import type { TextInputProps } from "react-native";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import type { TextInput, TextInputProps } from "react-native";
+import { StyleSheet, Text, TextInput as RNTextInput, View } from "react-native";
 import { colors, radii, spacing, textStyles } from "wireai-rn";
 
 type InputProps = TextInputProps & {
@@ -8,18 +8,20 @@ type InputProps = TextInputProps & {
   error?: string;
 };
 
-const _Input: React.FC<InputProps> = ({ label, error, style, ...props }) => (
+const _Input = React.forwardRef<TextInput, InputProps>(({ label, error, style, ...props }, ref) => (
   <View style={styles.container}>
     {label ? <Text style={styles.label}>{label}</Text> : null}
-    <TextInput
+    <RNTextInput
+      ref={ref}
       style={[styles.input, error ? styles.inputError : null, style]}
       placeholderTextColor={colors.textTertiary}
       {...props}
     />
     {error ? <Text style={styles.errorText}>{error}</Text> : null}
   </View>
-);
+));
 
+_Input.displayName = "Input";
 export const Input = React.memo(_Input);
 
 const styles = StyleSheet.create({

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import type { ViewProps, ViewStyle } from "react-native";
 import { View } from "react-native";
 import { spacing } from "wireai-rn";
@@ -49,27 +49,37 @@ const _Box: React.FC<BoxProps> = ({
   maxWidth,
   ...props
 }) => {
-  const boxStyle: ViewStyle = {
-    padding: padding ? spacing[padding] : undefined,
-    paddingHorizontal: paddingHorizontal ? spacing[paddingHorizontal] : undefined,
-    paddingVertical: paddingVertical ? spacing[paddingVertical] : undefined,
-    margin: margin ? spacing[margin] : undefined,
-    marginHorizontal: marginHorizontal ? spacing[marginHorizontal] : undefined,
-    marginVertical: marginVertical ? spacing[marginVertical] : undefined,
-    gap: gap ? spacing[gap] : undefined,
-    flex,
-    flexDirection,
-    alignItems,
-    alignSelf,
-    justifyContent,
-    backgroundColor,
-    borderRadius,
-    borderWidth,
-    borderTopWidth,
-    borderBottomWidth,
-    borderColor,
-    maxWidth,
-  };
+  const boxStyle = useMemo<ViewStyle>(
+    () => ({
+      padding: padding ? spacing[padding] : undefined,
+      paddingHorizontal: paddingHorizontal ? spacing[paddingHorizontal] : undefined,
+      paddingVertical: paddingVertical ? spacing[paddingVertical] : undefined,
+      margin: margin ? spacing[margin] : undefined,
+      marginHorizontal: marginHorizontal ? spacing[marginHorizontal] : undefined,
+      marginVertical: marginVertical ? spacing[marginVertical] : undefined,
+      gap: gap ? spacing[gap] : undefined,
+      flex,
+      flexDirection,
+      alignItems,
+      alignSelf,
+      justifyContent,
+      backgroundColor,
+      borderRadius,
+      borderWidth,
+      borderTopWidth,
+      borderBottomWidth,
+      borderColor,
+      maxWidth,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      padding, paddingHorizontal, paddingVertical,
+      margin, marginHorizontal, marginVertical,
+      gap, flex, flexDirection, alignItems, alignSelf, justifyContent,
+      backgroundColor, borderRadius, borderWidth, borderTopWidth, borderBottomWidth,
+      borderColor, maxWidth,
+    ]
+  );
 
   return (
     <View style={[boxStyle, style]} {...props}>

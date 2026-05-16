@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -76,15 +76,15 @@ type CoachingScreenProps = { onSettings?: () => void };
 
 const _CoachingScreen: React.FC<CoachingScreenProps> = ({ onSettings }) => {
   const { messages, isLoading, error, sendMessage, abort } = useWireAIThread();
-  const { inputText, setInputText, handleSubmit } = useWireAIInput(sendMessage);
+  const { inputRef, inputText, setInputText, handleSubmit } = useWireAIInput(sendMessage);
   const createActions = useWireAIAction(sendMessage);
   const listRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    }
-  }, [messages.length]);
+  // Scroll to bottom whenever content grows — covers both new messages and
+  // streaming token updates (content size changes on every token).
+  const handleContentSizeChange = useCallback(() => {
+    listRef.current?.scrollToEnd({ animated: false });
+  }, []);
 
   const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -153,6 +153,7 @@ const _CoachingScreen: React.FC<CoachingScreenProps> = ({ onSettings }) => {
               keyExtractor={keyExtractor}
               renderItem={renderMessage}
               contentContainerStyle={styles.list}
+              onContentSizeChange={handleContentSizeChange}
             />
           )}
 
@@ -171,7 +172,8 @@ const _CoachingScreen: React.FC<CoachingScreenProps> = ({ onSettings }) => {
           <Box padding="md" borderTopWidth={1} borderColor={colors.border} flexDirection="row" gap="sm">
             <Box flex={1}>
               <Input
-                value={inputText}
+                ref={inputRef}
+                defaultValue=""
                 onChangeText={setInputText}
                 placeholder="Type your feelings..."
                 onSubmitEditing={handleSubmit}
