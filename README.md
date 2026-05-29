@@ -1,35 +1,111 @@
+<div align="center">
+
 # wireai-rn
 
-> Wire your AI agent to native mobile UI.
+**Wire your AI agent to native mobile UI.**
 
-Open-source React Native SDK for generative UI. See [`packages/core/README.md`](packages/core/README.md) for full documentation.
+Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No WebView, no HTML, no hand-written parser.
 
-## Quick Links
+[![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
+[![npm downloads](https://img.shields.io/npm/dm/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
+[![license](https://img.shields.io/npm/l/wireai-rn.svg)](LICENSE)
+[![types](https://img.shields.io/npm/types/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
+[![stars](https://img.shields.io/github/stars/chohra-med/wireai-rn.svg?style=social)](https://github.com/chohra-med/wireai-rn)
 
-- **npm**: [`wireai-rn`](https://www.npmjs.com/package/wireai-rn)
-- **Website**: [getwireai.com](https://getwireai.com)
-- **Documentation**: [`packages/core/README.md`](packages/core/README.md)
-- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+Created by [**Malik Chohra**](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=creator) · Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)
 
-## Repository Structure
+</div>
+
+---
+
+Your agent speaks JSON. Mobile users expect native UI. Wire RN closes that gap: register your React Native components with a description and a Zod schema, the LLM picks which one to show, and Wire RN validates the props and renders it natively.
+
+```tsx
+import { WireAIProvider } from "wireai-rn";
+import { defaultComponents } from "wireai-rn/components";
+
+const config = { provider: "openai" as const, model: "gpt-4o-mini", apiKey: "..." };
+
+export default function App() {
+  return (
+    <WireAIProvider llm={config} components={defaultComponents}>
+      <ChatScreen />
+    </WireAIProvider>
+  );
+}
+```
+
+The agent returns `{ action, component, props }`, Wire RN validates `props` against the component's Zod schema, and a native component renders. Invalid output degrades to a fallback instead of crashing.
+
+## Why Wire RN
+
+- **Native, not WebView** — 11 built-in components, plus your own. Real React Native, themeable.
+- **Validated by Zod** — no malformed AI output ever reaches the screen.
+- **Streaming by default** — progressive rendering as tokens arrive, Hermes-safe (XHR, not `fetch`).
+- **Bring any model** — OpenAI, Ollama, LM Studio, a generic Webhook, or an A2A (Agent-to-Agent) endpoint.
+- **Nested composition** — generated components can nest other components, not just a flat list.
+- **Zero agent framework in your bundle** — LangChain / LangGraph stay on your server; the device stays thin.
+
+## Install
+
+```bash
+npm install wireai-rn zod
+# or
+yarn add wireai-rn zod
+```
+
+**Full documentation, step-by-step guide, and API reference:** [packages/core/README.md](packages/core/README.md)
+
+## Repository structure
 
 ```
 wire-rn/
-├── packages/core/     ← wireai-rn SDK (published to npm)
-├── apps/boilerplate/  ← Demo Expo app
-├── examples/          ← Example apps
-├── docs/              ← Additional documentation
-└── .github/           ← CI/CD workflows
+├── packages/core/             ← the wireai-rn SDK (published to npm)
+├── examples/
+│   ├── mental-coach/          ← streaming demo app
+│   └── langchain-multistep/   ← Express + LangChain LCEL server + RN client
+├── apps/boilerplate/          ← demo Expo app
+└── .github/                   ← CI workflows
 ```
+
+## Documentation
+
+- [SDK README + full API](packages/core/README.md) — install, guide, hooks, streaming, composition
+- [FEATURES.md](FEATURES.md) — what the SDK ships today
+- [DOCUMENTATION.md](DOCUMENTATION.md) — developer docs
+- [SECURITY.md](SECURITY.md) — API-key handling and the webhook-proxy pattern
+- [CONTRIBUTING.md](CONTRIBUTING.md) — pull request guidelines
 
 ## Development
 
 ```bash
-npm install
-npm run build
-npm run test
+yarn install
+yarn build       # build all packages (turbo)
+yarn test        # run the test suites
+yarn typecheck
 ```
+
+## Sponsors
+
+Wire RN is open source and free. Its development is backed by:
+
+- **[AI Mobile Launcher](https://aimobilelauncher.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)** — the AI-native React Native boilerplate. Ship an AI mobile app with local + cloud LLMs, generative UI, and a paywall already wired.
+- **[CasaInnov](https://casainnov.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)** — AI-native mobile product studio. Done-for-you AI mobile builds and fractional CTO work.
+
+Want your product here? [Open an issue](https://github.com/chohra-med/wireai-rn/issues) or reach out at [getwireai.com](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor-inquiry).
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+Created by **[Malik Chohra](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=creator)** — React Native engineer, building AI-native mobile.
+
+[Website](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=footer) · [Newsletter](https://codemeetai.substack.com?utm_source=github&utm_medium=readme&utm_campaign=newsletter) · [X / @malik_chohra](https://x.com/malik_chohra)
+
+Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)
+
+</div>

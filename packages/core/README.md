@@ -834,7 +834,7 @@ yarn test       # jest — 87 tests across 9 suites
 yarn typecheck
 ```
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for pull request guidelines.
+See [CONTRIBUTING.md](https://github.com/chohra-med/wireai-rn/blob/main/CONTRIBUTING.md) for pull request guidelines.
 
 ---
 
