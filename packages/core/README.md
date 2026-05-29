@@ -2,10 +2,67 @@
 
 **Wire your AI agent to native mobile UI.**
 
-Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No custom parsers. No prompt engineering. Works with Ollama, LM Studio, OpenAI, or any HTTP agent endpoint.
+Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No custom parsers. No prompt engineering. Works with Ollama, LM Studio, OpenAI, A2A agents, or any HTTP agent endpoint.
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
+[![npm downloads](https://img.shields.io/npm/dm/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![license](https://img.shields.io/npm/l/wireai-rn.svg)](https://github.com/chohra-med/wireai-rn/blob/main/LICENSE)
+[![types](https://img.shields.io/npm/types/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
+[![stars](https://img.shields.io/github/stars/chohra-med/wireai-rn.svg?style=social)](https://github.com/chohra-med/wireai-rn)
+
+Created by [**Malik Chohra**](https://getwireai.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=creator). Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor).
+
+```tsx
+// Your agent returns JSON. Wire RN renders it as native components, validated.
+<WireAIProvider llm={config} components={defaultComponents}>
+  <ChatScreen />
+</WireAIProvider>
+```
+
+---
+
+## Contents
+
+- [The Problem](#the-problem)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Install](#install)
+- [Step-by-Step Guide](#step-by-step-guide)
+- [Composition (nested components)](#composition--nested-components)
+- [Streaming](#streaming--progressive-ui-as-tokens-arrive)
+- [Built-in Components](#built-in-components-11)
+- [LLM Provider Reference](#llm-provider-reference)
+- [API Reference](#hooks-reference)
+- [Security](#security)
+- [Design Tokens](#design-tokens)
+- [Sponsors](#sponsors)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Quick Start
+
+```bash
+npm install wireai-rn zod
+```
+
+```tsx
+import { WireAIProvider } from "wireai-rn";
+import { defaultComponents } from "wireai-rn/components";
+
+const config = { provider: "openai" as const, model: "gpt-4o-mini", apiKey: "..." };
+
+export default function App() {
+  return (
+    <WireAIProvider llm={config} components={defaultComponents}>
+      <ChatScreen />
+    </WireAIProvider>
+  );
+}
+```
+
+That is the whole setup. Your agent returns `{ action, component, props }`, Wire RN validates the props against the component's Zod schema, and renders a native React Native component. No WebView, no HTML, no hand-written parser. The full chat screen is in [Step 3](#step-3--build-a-chat-screen).
 
 ---
 
@@ -772,12 +829,23 @@ textStyles.small // 13px regular
 git clone git@github.com:chohra-med/wireai-rn.git
 cd wireai-rn/packages/core
 yarn install
-yarn build    # ESM + CJS + .d.ts
-yarn test     # 23 tests
+yarn build      # ESM + CJS + .d.ts (tsup)
+yarn test       # jest — 87 tests across 9 suites
 yarn typecheck
 ```
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for pull request guidelines.
+
+---
+
+## Sponsors
+
+Wire RN is open source and free. Its development is backed by:
+
+- **[AI Mobile Launcher](https://aimobilelauncher.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor)** — the AI-native React Native boilerplate. Ship an AI mobile app with local + cloud LLMs, generative UI, and a paywall already wired.
+- **[CasaInnov](https://casainnov.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor)** — AI-native mobile product studio. Done-for-you AI mobile builds and fractional CTO work.
+
+Want your product here? Open an issue or reach out at [getwireai.com](https://getwireai.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor-inquiry).
 
 ---
 
@@ -787,4 +855,7 @@ MIT — see [LICENSE](../../LICENSE) for details.
 
 ---
 
-**Built by [Malik Chohra](https://getwireai.com)** · [Code Meet AI Newsletter](https://codemeetnewsletter.com) · [CasaInnov](https://casainnov.com)
+Created by **[Malik Chohra](https://getwireai.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=creator)** — React Native engineer, building AI-native mobile.
+[Website](https://getwireai.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=footer) · [Newsletter](https://codemeetai.substack.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=newsletter) · [X / @malik_chohra](https://x.com/malik_chohra)
+
+Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=wireai-rn&utm_medium=readme&utm_campaign=sponsor).

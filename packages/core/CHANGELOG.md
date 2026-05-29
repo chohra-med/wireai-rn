@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-29
+
+### Added
+- **Streaming by default** — every adapter streams unless disabled via a flag. New `useWireAIStream` hook + internal `streamStore`, plus a partial-JSON parser so incomplete component JSON renders progressively instead of waiting for the full payload.
+- **A2A (Agent-to-Agent) protocol adapter** (`llm/a2a.adapter.ts`) + agent-card builder (`schema/agent-card.builder.ts`) — render UI emitted by an upstream agent.
+- **Local LLM adapters** — first-class Ollama and LM Studio support.
+- **Nested component composition** via the `node-ref` schema — generated components can nest other components, not just a flat list.
+- Test coverage across a2a, agent-card, streaming, partial-JSON, and response validation.
+
+### Fixed
+- `react-native` export condition now resolves: `src` is included in the published `files` so Metro can consume the TypeScript entry points directly (previously the condition pointed at an unshipped path).
+
 ## [0.1.3]
 
 ### Fixed
