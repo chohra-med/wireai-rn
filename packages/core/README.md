@@ -454,6 +454,113 @@ export function AppRoot() {
 
 ---
 
+## Composition — nested components
+
+A container component can declare a `children` slot in its Zod schema using the exported `NodeRefSchema`. The renderer recurses into the tree, validates each node against the registered component's schema, and hands the container ready-to-mount React elements (pre-rendered in place of the raw `NodeRef[]`).
+
+**1. Declare a container:**
+
+```tsx
+import { NodeRefSchema } from "wireai-rn";
+import type { WireAIComponent } from "wireai-rn";
+import { z } from "zod";
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+
+const cardSchema = z.object({
+  title: z.string().describe("Card heading"),
+  children: z
+    .array(NodeRefSchema)
+    .optional()
+    .describe("Nested child components — text, charts, status cards, etc."),
+});
+
+// The SDK pre-renders the children array into ReactNode[] before passing it
+// down, so the container just lays them out.
+const CardView: React.FC<z.infer<typeof cardSchema>> = ({ title, children }) => (
+  <View style={styles.card}>
+    <Text style={styles.title}>{title}</Text>
+    {children as unknown as React.ReactNode}
+  </View>
+);
+
+export const Card: WireAIComponent<typeof cardSchema> = {
+  name: "Card",
+  description:
+    "A container holding a heading plus a list of nested components. Use when you need to group related child components under a single title.",
+  component: CardView as React.ComponentType<z.infer<typeof cardSchema> & { messageId: string }>,
+  propsSchema: cardSchema,
+};
+
+const styles = StyleSheet.create({
+  card: { padding: 16, borderRadius: 12, backgroundColor: "#fff", gap: 8 },
+  title: { fontSize: 17, fontWeight: "600" },
+});
+```
+
+**2. The LLM emits a tree:**
+
+```json
+{
+  "action": "render",
+  "component": "Card",
+  "props": {
+    "title": "Trip Summary",
+    "children": [
+      { "component": "MessageBubble", "props": { "message": "Lisbon, Sept 12–18" } },
+      { "component": "StatusCard",    "props": { "status": "success", "title": "Booked", "ctaLabel": "What's next?" } }
+    ]
+  }
+}
+```
+
+The renderer walks the tree, validates each node's props against its registered schema, and substitutes the `children` array with `ReactNode[]` before `Card` mounts.
+
+**Notes:**
+- Max nesting depth is 8. Beyond that, the offending subtree renders `FallbackMessage`.
+- One bad subtree never kills the whole message — each level is wrapped in `ComponentErrorBoundary`, and per-node validation failures degrade to a localized fallback.
+- For dynamic layouts where the SDK can't auto-locate children, the component receives an injected `renderNode(child)` helper that turns a single `NodeRef` into a `ReactNode`.
+
+---
+
+## Streaming — progressive UI as tokens arrive
+
+Adapters that implement `chatStream` (currently `OpenAIAdapter` and `WebhookAdapter`) push tokens through an XHR-based stream. The thread hook parses partial JSON on each chunk and publishes the best-effort partial response to a small pub/sub store keyed by `messageId`. Subscribe with `useWireAIStream` to render only the bubble that's streaming — the rest of the conversation doesn't re-render.
+
+**Render a streaming bubble:**
+
+```tsx
+import { ComponentRenderer, LoadingState, useWireAIStream } from "wireai-rn";
+import type { Message } from "wireai-rn";
+
+function AssistantBubble({ message }: { message: Message }) {
+  const stream = useWireAIStream(message.id);
+  const response = stream?.response ?? message.response;
+  if (!response) return <LoadingState />;
+  return (
+    <ComponentRenderer
+      messageId={message.id}
+      response={response}
+      isStreaming={stream?.isStreaming ?? message.isStreaming ?? false}
+    />
+  );
+}
+```
+
+**Why XHR (not fetch)?** React Native's `fetch` does not expose `response.body` as a `ReadableStream`, so true progressive reads are only available through `XMLHttpRequest.onprogress`. The adapter accumulates `xhr.responseText` and forwards new bytes to your `onChunk` callback.
+
+**Webhook server contract.** When using `WebhookAdapter.chatStream`, your server must respond with `Transfer-Encoding: chunked` and stream the assistant's raw JSON text progressively. If your server wraps responses in `{ content: ... }`, either strip the wrapper before streaming or use the non-streaming `chat()` method.
+
+**Behavior during a stream:**
+- A placeholder assistant `Message` is inserted immediately when you call `sendMessage`. It carries `isStreaming: true` and an empty `content` until the final chunk arrives.
+- The stream store holds the latest partial. Nodes whose props don't yet pass strict Zod validation silently render `null` until the next chunk fills them in (no fallback flicker).
+- On the final chunk, the strict validator runs against the full buffer. On success, the placeholder is replaced with the finalized message and the stream store entry is cleared. On failure, the placeholder is removed and `error` is set.
+- Aborting (e.g. user taps Stop) tears down the XHR; no late `onChunk` callbacks fire.
+
+**Falls back automatically.** Adapters without `chatStream` (Ollama, LM Studio, A2A) keep the existing one-shot path. No code change needed in your app to support the mix.
+
+---
+
 ## Built-in Components (11)
 
 Import from `wireai-rn/components`. All are Zod-validated, `React.memo`-wrapped, and include submitted-state protection (no double-submit).
@@ -517,6 +624,16 @@ const config: LocalLLMConfig = {
 ---
 
 ## Hooks Reference
+
+### `useWireAIStream(messageId)`
+
+```ts
+const stream = useWireAIStream(messageId);
+// stream?.response   — latest partial WireAIResponse (or undefined)
+// stream?.isStreaming — true until the final chunk arrives
+```
+
+Used inside per-message bubbles when the adapter supports `chatStream`. Re-renders are coalesced via `requestAnimationFrame` so a fast token stream doesn't flood React.
 
 ### `useWireAIThread()`
 

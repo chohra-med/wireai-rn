@@ -16,3 +16,16 @@ coverage/
 
 # Lockfile conflicts (project uses yarn)
 package-lock.json
+
+# Internal architecture / backend notes — keep locally, never publish
+a2e_backend.md
+app.json
+
+# Local-only AI sync instructions (vault paths, internal references — never publish)
+CLAUDE.local.md
+CLAUDE.md
+.memory/
+.agent/
+.claude/
+ai_rules/
+**/.env

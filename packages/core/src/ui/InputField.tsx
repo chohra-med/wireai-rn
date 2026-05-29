@@ -1,9 +1,10 @@
 import React from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View, type TextInput as TextInputType } from "react-native";
 import { colors, radii, spacing, textStyles } from "../styles/tokens";
 
 type InputFieldProps = {
-  value: string;
+  value?: string;
+  defaultValue?: string;
   onChangeText?: (text: string) => void;
   placeholder?: string;
   label?: string;
@@ -17,8 +18,9 @@ type InputFieldProps = {
   onSubmitEditing?: () => void;
 };
 
-const _InputField: React.FC<InputFieldProps> = ({
+const _InputField = React.forwardRef<TextInputType, InputFieldProps>(({
   value,
+  defaultValue,
   onChangeText,
   placeholder,
   label,
@@ -30,12 +32,14 @@ const _InputField: React.FC<InputFieldProps> = ({
   returnKeyType,
   blurOnSubmit = true,
   onSubmitEditing,
-}) => (
+}, ref) => (
   <View>
     {label ? <Text style={styles.label}>{label}</Text> : null}
     <TextInput
+      ref={ref}
       style={[styles.input, !editable && styles.inputDisabled]}
       value={value}
+      defaultValue={defaultValue}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={colors.textSecondary}
@@ -49,8 +53,9 @@ const _InputField: React.FC<InputFieldProps> = ({
       onSubmitEditing={onSubmitEditing}
     />
   </View>
-);
+));
 
+_InputField.displayName = "InputField";
 export const InputField = React.memo(_InputField);
 
 const styles = StyleSheet.create({

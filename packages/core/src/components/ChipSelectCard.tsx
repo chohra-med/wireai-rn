@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { z } from "zod";
 import { colors, radii, spacing, textStyles } from "../styles/tokens";
 import { Btn } from "../ui/Btn";
@@ -60,18 +60,16 @@ const _ChipSelectCard: React.FC<Props> = ({
       {maxSelections ? (
         <Text style={styles.hint}>{`Select up to ${maxSelections}`}</Text>
       ) : null}
-      <ScrollView horizontal={false} showsVerticalScrollIndicator={false} scrollEnabled={false}>
-        <View style={styles.chipsRow}>
-          {chips.map((chip) => (
-            <ChipItem
-              key={chip}
-              chip={chip}
-              isSelected={selected.includes(chip)}
-              onToggle={toggle}
-            />
-          ))}
-        </View>
-      </ScrollView>
+      <View style={styles.chipsRow}>
+        {chips.map((chip) => (
+          <ChipItem
+            key={chip}
+            chip={chip}
+            isSelected={selected.includes(chip)}
+            onToggle={toggle}
+          />
+        ))}
+      </View>
       <Btn
         title={submitLabel}
         onPress={handleSubmit}

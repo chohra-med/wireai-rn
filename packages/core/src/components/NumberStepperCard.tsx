@@ -20,33 +20,45 @@ type Props = z.infer<typeof schema> &
     onSubmit?: (value: number) => void;
   };
 
+const safeNum = (n: unknown, fallback: number): number =>
+  typeof n === "number" && Number.isFinite(n) ? n : fallback;
+
 const _NumberStepperCard: React.FC<Props> = ({
   label,
-  min = 1,
-  max = 30,
-  defaultValue = 1,
-  step = 1,
+  min,
+  max,
+  defaultValue,
+  step,
   unit,
   submitLabel = "Confirm",
   onSubmit,
 }) => {
-  const [value, setValue] = useState(Math.min(Math.max(defaultValue, min), max));
+  // Coerce every numeric prop so a malformed LLM payload (NaN, Infinity, string)
+  // can never propagate to layout math or CoreGraphics.
+  const safeMin = safeNum(min, 1);
+  const safeMaxRaw = safeNum(max, 30);
+  const safeMax = safeMaxRaw < safeMin ? safeMin : safeMaxRaw;
+  const safeStepRaw = safeNum(step, 1);
+  const safeStep = safeStepRaw > 0 ? safeStepRaw : 1;
+  const safeDefault = safeNum(defaultValue, safeMin);
+
+  const [value, setValue] = useState(Math.min(Math.max(safeDefault, safeMin), safeMax));
   const [submitted, setSubmitted] = useState(false);
 
   const handleDecrement = useCallback(() => {
-    if (!submitted) setValue((v) => Math.max(v - step, min));
-  }, [submitted, step, min]);
+    if (!submitted) setValue((v) => Math.max(v - safeStep, safeMin));
+  }, [submitted, safeStep, safeMin]);
 
   const handleIncrement = useCallback(() => {
-    if (!submitted) setValue((v) => Math.min(v + step, max));
-  }, [submitted, step, max]);
+    if (!submitted) setValue((v) => Math.min(v + safeStep, safeMax));
+  }, [submitted, safeStep, safeMax]);
 
   const handleSubmit = useCallback(() => {
     if (!submitted) { setSubmitted(true); onSubmit?.(value); }
   }, [submitted, onSubmit, value]);
 
-  const atMin = value <= min;
-  const atMax = value >= max;
+  const atMin = value <= safeMin;
+  const atMax = value >= safeMax;
 
   return (
     <View style={styles.card}>
@@ -72,7 +84,7 @@ const _NumberStepperCard: React.FC<Props> = ({
           </Text>
         </Pressable>
       </View>
-      <Text style={styles.rangeHint}>{`${min} – ${max}${unit ? ` ${unit}` : ""}`}</Text>
+      <Text style={styles.rangeHint}>{`${safeMin} – ${safeMax}${unit ? ` ${unit}` : ""}`}</Text>
       <Btn title={submitLabel} onPress={handleSubmit} variant="primary" disabled={submitted} />
     </View>
   );

@@ -104,13 +104,38 @@ A complete travel planning flow looks like this (do NOT skip steps):
 
 **Critical**: After each submit/select action, immediately render the NEXT component in the sequence. Never stop at an acknowledgment.
 
+## Composition (Nested Components)
+
+Any component whose props schema includes an array prop of "node references" can hold nested children. A node reference is an object \`{ "component": "<Name>", "props": { ... } }\`. The renderer recurses on these.
+
+**When a component's props list includes a field like \`children\` (or any \`*[]\` slot described as "nested components" / "child nodes"), emit each child as a JSON object with its own \`component\` and \`props\`. Containers do NOT receive raw text — wrap text in a child component (e.g. \`MessageBubble\`).**
+
+Example — a Card holding a heading bubble and a status:
+
+\`\`\`json
+{
+  "action": "render",
+  "component": "Card",
+  "props": {
+    "title": "Trip Summary",
+    "children": [
+      { "component": "MessageBubble", "props": { "message": "Booked flight to Lisbon, Sept 12" } },
+      { "component": "StatusCard",    "props": { "status": "success", "title": "Confirmed", "ctaLabel": "What's next?" } }
+    ]
+  }
+}
+\`\`\`
+
+Maximum nesting depth: 8. Do not exceed it — flatten if a tree gets deeper.
+
 ## JSON Rules
 1. Output ONLY the JSON object — no markdown, no extra text before or after
 2. "action" must be exactly "render" or "ask"
 3. For "render": "component" must be one of: ${componentNames.join(", ")}
 4. For "render": "props" must match the component's props schema (arrays must be arrays, not objects)
-5. Never include JavaScript functions, undefined values, or circular references
-6. All string values must use double quotes`;
+5. For nested children: each child must be \`{ "component": "<Name>", "props": { ... } }\` — never a bare string and never an inline object missing the \`component\` field
+6. Never include JavaScript functions, undefined values, or circular references
+7. All string values must use double quotes`;
 
   return suffix ? `${base}\n\n${suffix}` : base;
 };
