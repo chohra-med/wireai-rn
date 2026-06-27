@@ -72,6 +72,7 @@ export class A2AAdapter implements BaseAdapter {
   private readonly model: string;
   private readonly timeoutMs: number;
   private readonly apiKey?: string;
+  private readonly metadata?: Record<string, unknown>;
   private contextId: string | undefined = undefined;
 
   constructor(config: LocalLLMConfig) {
@@ -79,6 +80,7 @@ export class A2AAdapter implements BaseAdapter {
     this.model = config.model;
     this.timeoutMs = config.timeoutMs ?? 60_000;
     this.apiKey = config.apiKey;
+    this.metadata = config.metadata;
   }
 
   /** Clears the A2A contextId so the next chat() starts a fresh session. */
@@ -145,7 +147,7 @@ export class A2AAdapter implements BaseAdapter {
         params: {
           message: a2aMessages[a2aMessages.length - 1],
           ...(this.contextId ? { contextId: this.contextId } : {}),
-          metadata: { model: this.model },
+          metadata: { model: this.model, ...(this.metadata ?? {}) },
         },
       };
 

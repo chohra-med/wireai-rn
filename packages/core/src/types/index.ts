@@ -55,6 +55,12 @@ export type LocalLLMConfig = {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  /**
+   * Extra metadata merged into every A2A request's `params.metadata`. Lets the
+   * app forward context the agent can use — e.g. install attribution
+   * (`{ attribution: { provider, payload } }`) from AppsFlyer/Branch. A2A only.
+   */
+  metadata?: Record<string, unknown>;
 };
 
 export type MessageRole = "user" | "assistant" | "system";
