@@ -12,7 +12,9 @@ Open-source React Native SDK for generative UI — render interactive native com
 [![types](https://img.shields.io/npm/types/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![stars](https://img.shields.io/github/stars/chohra-med/wireai-rn.svg?style=social)](https://github.com/chohra-med/wireai-rn)
 
-Created by [**Malik Chohra**](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=creator) · Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)
+Created by [**Malik Chohra**](https://getwireai.com?utm_source=github&utm_medium=readme&utm_campaign=creator) · [Code Meet AI newsletter](https://codemeetai.substack.com?utm_source=github&utm_medium=readme&utm_campaign=newsletter)
+
+Sponsored by [AI Mobile Launcher](https://aimobilelauncher.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor) and [CasaInnov](https://casainnov.com?utm_source=github&utm_medium=readme&utm_campaign=sponsor)
 
 </div>
 
@@ -71,6 +73,9 @@ wire-rn/
 ## Documentation
 
 - [SDK README + full API](packages/core/README.md) — install, guide, hooks, streaming, composition
+- [Guide: Dynamic AI Onboarding](docs/dynamic-onboarding.md) — host-it-yourself recipe for a personalized, prompt-driven onboarding flow
+- [Guide: Integrate via the Wire AI backend](docs/integrate-via-backend.md) — the managed-backend path (recommended): the server owns the prompt/flow/analytics, your app just renders + persists
+- [Guide: Expo / RN integration notes](docs/expo-integration.md) — install, zod v3 pin, jest config, Hermes/New-Arch, testing AI screens
 - [FEATURES.md](FEATURES.md) — what the SDK ships today
 - [DOCUMENTATION.md](DOCUMENTATION.md) — developer docs
 - [SECURITY.md](SECURITY.md) — API-key handling and the webhook-proxy pattern
