@@ -20,6 +20,9 @@
  * };
  * ```
  *
+ * `timeoutMs` bounds the entire request, including the tasks/get polling loop
+ * for long-running agents, not just the initial connection.
+ *
  * Expected agent response (DataPart — preferred):
  * ```json
  * {
@@ -62,8 +65,12 @@ const WORKING = new Set<A2ATaskState>([
   "submitted", "working",
 ]);
 
-const MAX_POLLS = 30;
 const POLL_INTERVAL_MS = 1000;
+// Safety guard only. The real stop condition for the poll loop is the
+// timeoutMs abort armed in chat(); this sits a few polls *above* the timeout
+// budget so a timer that never fires can't spin forever, but it can never
+// pre-empt the configured timeout.
+const POLL_SAFETY_MARGIN_POLLS = 5;
 
 let _rpcId = 1;
 
@@ -205,7 +212,7 @@ export class A2AAdapter implements BaseAdapter {
       }
 
       // Poll tasks/get until a terminal state is reached
-      task = await this._poll(task, combined.signal, timedOut);
+      task = await this._poll(task, combined.signal, () => timedOut);
       clearTimeout(tid);
 
       const state = task.status.state;
@@ -229,13 +236,22 @@ export class A2AAdapter implements BaseAdapter {
   private async _poll(
     task: A2ATask,
     signal: AbortSignal,
-    timedOut: boolean
+    isTimedOut: () => boolean
   ): Promise<A2ATask> {
     let current = task;
     let attempts = 0;
+    // The poll loop runs until the agent reaches a terminal state or the
+    // configured timeoutMs aborts the request. A fixed 30-poll cap used to end
+    // any run past ~30s regardless of timeoutMs, so a 60s-configured agent that
+    // legitimately needed 45s died silently. This budget sits *above* the
+    // timeout so the timeout, not the poll count, is what ends a long run; it
+    // only guards against an abort timer that somehow never fires.
+    const safetyMaxPolls =
+      Math.ceil(this.timeoutMs / POLL_INTERVAL_MS) + POLL_SAFETY_MARGIN_POLLS;
 
-    while (WORKING.has(current.status.state) && attempts < MAX_POLLS) {
+    while (WORKING.has(current.status.state) && attempts < safetyMaxPolls) {
       if (signal.aborted) {
+        if (isTimedOut()) throw this._timeoutError();
         throw Object.assign(new Error("AbortError"), { name: "AbortError" });
       }
 
@@ -276,19 +292,34 @@ export class A2AAdapter implements BaseAdapter {
           }
         }
       } catch (e) {
-        if (e instanceof Error && e.name === "AbortError") throw e;
+        if (e instanceof Error && e.name === "AbortError") {
+          // A timeout mid-poll surfaces here as an aborted fetch — report it as
+          // a timeout, not a bare AbortError.
+          if (isTimedOut()) throw this._timeoutError();
+          throw e;
+        }
         // Swallow transient network errors and retry on next iteration
       }
     }
 
-    if (attempts >= MAX_POLLS && WORKING.has(current.status.state)) {
+    if (WORKING.has(current.status.state)) {
+      // Reached only if the safety cap tripped without the timeout aborting
+      // first — should not happen in normal operation.
       throw new Error(
-        `[WireAI] A2A task still in state "${current.status.state}" after ${MAX_POLLS} polls. ` +
+        `[WireAI] A2A task still in state "${current.status.state}" after ${this.timeoutMs}ms. ` +
           "The agent may be overloaded."
       );
     }
 
     return current;
+  }
+
+  /** Timeout error shared by the connect and poll phases. */
+  private _timeoutError(): Error {
+    return new Error(
+      `[WireAI] A2A agent did not complete within ${this.timeoutMs}ms. ` +
+        "The agent may be overloaded, or raise timeoutMs for longer runs."
+    );
   }
 
   /**

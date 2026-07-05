@@ -303,23 +303,44 @@ describe("A2AAdapter", () => {
     expect((pollBody.params as { taskId: string }).taskId).toBe("task-1");
   });
 
-  it("throws when task remains WORKING after max polls", async () => {
+  // F1 regression: a long-running agent must live up to the configured
+  // timeoutMs, not a hidden 30-poll (~30s) cap. A 40s run under a 45s timeout
+  // used to die at ~30s; it must now complete.
+  it("honors timeoutMs for the poll budget: a 40s run under a 45s timeout completes (F1)", async () => {
     jest.useFakeTimers();
     try {
-      const responses = Array.from({ length: 35 }, () => makePollTask("WORKING"));
-      mockFetch(makeWorkingTask(), ...responses);
-      // Use a long timeoutMs so the adapter timeout does not fire before 30 polls run
-      const adapter = new A2AAdapter({ ...config, timeoutMs: 120_000 });
+      const wireaiJson = '{"action":"ask","message":"slow but done"}';
+      // 39 WORKING polls, then COMPLETED on the 40th (~40s of work).
+      const working = Array.from({ length: 39 }, () => makePollTask("WORKING"));
+      mockFetch(makeWorkingTask(), ...working, makePollTask("COMPLETED", wireaiJson));
+      const adapter = new A2AAdapter({ ...config, timeoutMs: 45_000 });
 
       const chatPromise = adapter.chat([{ role: "user", content: "hi" }]);
-      // Attach a no-op handler immediately so Node does not flag this as an
-      // unhandled rejection while we advance fake timers below.
       chatPromise.catch(() => {});
 
-      // Advance simulated time by 31s (30 polls × 1s each) flushing microtasks between ticks
-      await jest.advanceTimersByTimeAsync(31_000);
+      // 41s: past the old 30-poll cap, still inside the 45s timeout.
+      await jest.advanceTimersByTimeAsync(41_000);
 
-      await expect(chatPromise).rejects.toThrow(/still in state "WORKING" after 30 polls/);
+      await expect(chatPromise).resolves.toBe(wireaiJson);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("stops polling at the configured timeout and reports it as a timeout", async () => {
+    jest.useFakeTimers();
+    try {
+      const responses = Array.from({ length: 20 }, () => makePollTask("WORKING"));
+      mockFetch(makeWorkingTask(), ...responses);
+      // 5s timeout → the request must end at ~5s, not run to some fixed cap.
+      const adapter = new A2AAdapter({ ...config, timeoutMs: 5_000 });
+
+      const chatPromise = adapter.chat([{ role: "user", content: "hi" }]);
+      chatPromise.catch(() => {});
+
+      await jest.advanceTimersByTimeAsync(6_000);
+
+      await expect(chatPromise).rejects.toThrow(/did not complete within 5000ms/);
     } finally {
       jest.useRealTimers();
     }
