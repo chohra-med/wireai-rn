@@ -24,6 +24,10 @@ Wire your AI agent to native mobile UI. Open-source React Native SDK for generat
 14. [Performance Best Practices](#14-performance-best-practices)
 15. [Production Deployment Checklist](#15-production-deployment-checklist)
 
+**Guides**
+
+- [Dynamic AI Onboarding](docs/dynamic-onboarding.md) — step-by-step recipe for a personalized, prompt-driven onboarding flow (component subset → product-specific prompt → schema-validated plan → persist).
+
 ---
 
 ## 1. Architecture Overview
