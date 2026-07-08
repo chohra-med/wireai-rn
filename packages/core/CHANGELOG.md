@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-07-06
+
+### Changed
+- Release/packaging sync — republished to align the git tag and npm `latest` with the 0.2.3 runtime. No functional changes to the SDK since 0.2.3.
+
+## [0.2.3] - 2026-07-06
+
+### Fixed
+- **A2A: `timeoutMs` is now the single ceiling for the whole request, including the `tasks/get` poll loop.** A hidden 30-poll (~30s) cap in `_poll` used to kill any agent run past ~30s regardless of the configured `timeoutMs` (e.g. a 45s agent run under the default 60s died silently). The poll budget is now derived from `timeoutMs`; a timeout reports as a timeout instead of "after 30 polls" or a bare `AbortError`, and a mid-poll timeout no longer surfaces as a raw `AbortError`. (Fable 5 audit finding F1.)
+
+## [0.2.2] - 2026-07-03
+
+### Changed
+- Release version bump only — republished byte-identical to 0.2.1 (no functional changes). Kept for npm version continuity.
+
 ## [0.2.1] - 2026-06-27
 
 ### Fixed

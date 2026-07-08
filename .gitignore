@@ -29,3 +29,14 @@ CLAUDE.md
 .claude/
 ai_rules/
 **/.env
+
+# Dev harness scaffolding + private audits — never ship in the public SDK
+AGENTS.md
+RULES.md
+SPEC-HARNESS.md
+constitution.md
+goal.md
+FABLE-5-AUDIT.md
+FABLE-5-AUDIT-BACKLOG.md
+FABLE-5-F1-IMPACT-PLAN.md
+/learning/
