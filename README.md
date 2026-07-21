@@ -4,6 +4,8 @@
 
 **Wire your AI agent to native mobile UI.**
 
+_Part of [**Wire AI**](https://getwireai.com), the AI-native growth engineer for mobile apps._
+
 Open-source React Native SDK for generative UI — render interactive native components from LLM responses. No WebView, no HTML, no hand-written parser.
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
