@@ -90,6 +90,17 @@ yarn test        # run the test suites
 yarn typecheck
 ```
 
+## The Wire AI ecosystem
+
+[Wire AI](https://getwireai.com) is the AI-native growth engineer for mobile apps: one agent that runs four versions of every step of your users' journey, live at once, and keeps what makes them stay. This project is one piece of that ecosystem:
+
+- **Wire RN SDK** (`wireai-rn`): this repo. The open-source React Native SDK that renders Wire's AI-driven flows as native components in your app.
+- **Expo boilerplate**: an open-source Expo starter wired for Wire AI activation out of the box. https://github.com/chohra-med/expo_boilerplate
+- **Claude skills**: skills for each part of the app (SDK integration, the question script, the learning loop) that explain and drive the work from inside your editor.
+- **Hosted MCP server**: connect Claude, Cursor, or any MCP client to Wire's hosted server at `https://wireai-mcp.fly.dev/mcp` with an `Authorization: Bearer <key>` header to read your funnel and run the improve loop. Nothing runs from your repo.
+
+The activation kit ships as [`@wireai/activation`](https://www.npmjs.com/package/@wireai/activation) on npm.
+
 ## Sponsors
 
 Wire RN is open source and free. Its development is backed by:
