@@ -45,7 +45,7 @@ _Part of [**Wire AI**](https://getwireai.com), the AI-native growth engineer for
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![npm downloads](https://img.shields.io/npm/dm/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
-[![license](https://img.shields.io/npm/l/wireai-rn.svg)](LICENSE)
+[![license](https://img.shields.io/npm/l/wireai-rn.svg)](packages/core/LICENSE)
 [![types](https://img.shields.io/npm/types/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![stars](https://img.shields.io/github/stars/chohra-med/wireai-rn.svg?style=social)](https://github.com/chohra-med/wireai-rn)
 
@@ -90,12 +90,11 @@ wireai-rn/
 
 ## Documentation
 
-- [SDK README + full API](packages/core/README.md): install, guide, hooks, streaming, composition
-- [Guide: Dynamic AI Onboarding](docs/dynamic-onboarding.md): host-it-yourself recipe for a personalized, prompt-driven onboarding flow
-- [Guide: Integrate via the Wire AI backend](docs/integrate-via-backend.md): the managed-backend path (recommended): the server owns the prompt/flow/analytics, your app just renders + persists
-- [Guide: Expo / RN integration notes](docs/expo-integration.md): install, zod v3 pin, jest config, Hermes/New-Arch, testing AI screens
+- [SDK README + full API](packages/core/README.md): install, peer deps and the zod v3 pin, step-by-step guide, hooks, streaming, composition
+- [Example: mental-coach](examples/mental-coach/README.md): client-only Expo app, streaming on, a prompt-driven multi-step flow you run yourself
+- [Example: langchain-multistep](examples/langchain-multistep/README.md): the production shape, an Express + LangChain server owns the prompt and the flow, the app renders through `WebhookAdapter`
 - [FEATURES.md](FEATURES.md): what the SDK ships today
-- [DOCUMENTATION.md](DOCUMENTATION.md): developer docs
+- [DOCUMENTATION.md](DOCUMENTATION.md): developer docs, provider setup, testing, deployment checklist
 - [SECURITY.md](SECURITY.md): API-key handling and the webhook-proxy pattern
 - [CONTRIBUTING.md](CONTRIBUTING.md): pull request guidelines
 
@@ -130,7 +129,7 @@ Want your product here? [Open an issue](https://github.com/chohra-med/wireai-rn/
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](packages/core/LICENSE).
 
 ---
 
