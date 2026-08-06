@@ -92,6 +92,14 @@ yarn test        # run the test suites
 yarn typecheck
 ```
 
+## Acceptable use and the EU AI Act
+
+**This system is not intended to be put into service as, or changed into, a high-risk AI system.** Do not build Wire-powered surfaces into an Annex III high-risk area: biometrics, critical infrastructure, education and vocational training, employment, access to essential services and benefits, law enforcement, migration, or administration of justice.
+
+The app that ships a Wire-powered surface is the deployer of it. One consequence is worth reading before you build rather than after: if you use this SDK for a chat-like or free-text-responding surface, the Article 50(1) disclosure that a user is interacting with an AI system is your app's to place, not the SDK's.
+
+Our full reading, dated and with the reasoning visible, covering Article 50, Article 25 and what the MIT licence changes: [EU-AI-ACT.md](EU-AI-ACT.md). It is a position, not legal advice.
+
 ## The Wire AI ecosystem
 
 [Wire AI](https://getwireai.com) is the AI-native growth engineer for mobile apps: one agent that runs four versions of every step of your users' journey, live at once, and keeps what makes them stay. This project is one piece of that ecosystem:
