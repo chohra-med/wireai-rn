@@ -34,6 +34,7 @@ Created by [**Malik Chohra**](https://getwireai.com?utm_source=wireai-rn&utm_med
 - [LLM Provider Reference](#llm-provider-reference)
 - [API Reference](#hooks-reference)
 - [Security](#security)
+- [Acceptable use and the EU AI Act](#acceptable-use-and-the-eu-ai-act)
 - [Design Tokens](#design-tokens)
 - [Sponsors](#sponsors)
 - [Contributing](#contributing)
@@ -784,6 +785,22 @@ flowchart LR
 - **Local LLMs** (Ollama, LM Studio): no API key needed — safe for production if the model runs on the device or a private server
 - **Cloud LLMs in dev**: `apiKey` is fine in `__DEV__` mode, but WireAI logs a warning
 - **Cloud LLMs in production**: always use `WebhookAdapter` with a server-side proxy
+
+---
+
+## Acceptable use and the EU AI Act
+
+Position as of 2026-08-06, against Regulation (EU) 2024/1689 as amended by Regulation (EU) 2026/1744. This is our reading, not legal advice, and a review by a qualified lawyer is pending.
+
+**This system is not intended to be put into service as, or changed into, a high-risk AI system.** Do not build Wire-powered surfaces into an Annex III high-risk area: biometrics, critical infrastructure, education and vocational training, employment, access to essential services and benefits, law enforcement, migration, or administration of justice. Two Article 5(1) prohibitions have been live since 2 February 2025: no subliminal, manipulative or deceptive techniques that materially distort behaviour, and no exploiting vulnerabilities due to age, disability, or a specific social or economic situation.
+
+The app that installs this SDK is the deployer of the surface it ships. Wire runs no model and hosts no service here, so you pick the model, the prompt and the flow.
+
+On Article 50(1), applicable since 2 August 2026 with no legacy grace period: our reading is that generated UI made of cards, buttons and form fields is not a conversational agent, and a user tapping through it is not being led to believe there is a human on the other end. If you build a chat-like or free-text-responding surface instead, that reading stops and the disclosure that the user is interacting with an AI system is your app's to place. This SDK ships `MessageBubble` and a `ChatScreen` boilerplate, so that path is a short one from here.
+
+On Article 50(2): the text a user sees comes from a model you chose, and provider-level marking of a model's output sits upstream with that model's provider. For the render layer, we rely on the carve-out in the article itself, which "shall not apply to the extent the AI systems perform an assistive function for standard editing or do not substantially alter the input data provided by the deployer or the semantics thereof."
+
+The full position, including Article 50(3), Article 25 and what the MIT licence changes, is in [EU-AI-ACT.md](https://github.com/chohra-med/wireai-rn/blob/main/EU-AI-ACT.md).
 
 ---
 
