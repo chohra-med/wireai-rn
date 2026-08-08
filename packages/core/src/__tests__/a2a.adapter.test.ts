@@ -1,4 +1,7 @@
+import { z } from "zod";
 import { A2AAdapter } from "../llm/a2a.adapter";
+import { validateLLMResponse } from "../schema/validate-response";
+import type { ComponentRegistry } from "../registry/component-registry";
 import type { LocalLLMConfig } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +100,23 @@ function mockFetch(...responses: object[]) {
       ok: true,
       json: () => Promise.resolve(body),
       text: () => Promise.resolve(JSON.stringify(body)),
+    });
+  });
+}
+
+/**
+ * Mocks fetch from RAW JSON-RPC response text, the way the wire actually
+ * delivers it — the mock parses, so every asserted value is one the adapter
+ * produced from the text rather than an object literal handed to it.
+ */
+function mockFetchRaw(...rawResponses: string[]) {
+  let call = 0;
+  (global as unknown as { fetch: unknown }).fetch = jest.fn(() => {
+    const raw = rawResponses[Math.min(call++, rawResponses.length - 1)] as string;
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(JSON.parse(raw) as unknown),
+      text: () => Promise.resolve(raw),
     });
   });
 }
@@ -549,5 +569,185 @@ describe("A2AAdapter", () => {
     const adapter = new A2AAdapter(config);
     const result = await adapter.chat([{ role: "user", content: "hi" }]);
     expect(result).toBe(wireaiJson);
+  });
+
+  // ── Extra DataParts (readLastDataParts) ──────────────────────────────────────
+  //
+  // The Wire onboarding server emits a terminal task whose agent message holds
+  // TWO DataParts: [0] the component envelope, [1] a structured plan. Only the
+  // envelope can travel in chat()'s string return, so everything past it is
+  // read back off the adapter instead. Fixtures below are raw JSON-RPC text.
+
+  const RAW_ENVELOPE_AND_PLAN = `{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "id": "task-1",
+      "contextId": "ctx-plan",
+      "status": { "state": "COMPLETED" },
+      "messages": [
+        { "role": "user", "parts": [{ "text": "hi" }] },
+        {
+          "role": "agent",
+          "parts": [
+            { "data": { "action": "render", "component": "ActionCard", "props": { "title": "Welcome" } } },
+            { "data": { "kind": "onboarding_plan", "plan": {
+                "summary": "Sleep first, hydration second.",
+                "items": [
+                  { "title": "Wind down at 22:30", "description": "Screens off.", "category": "sleep" },
+                  { "title": "Drink 1.5L", "description": "", "category": null }
+                ],
+                "next_action_label": "Get started",
+                "next_action": "start",
+                "showcase": ["sleep_tracker"],
+                "coachmarks": ["home_streak"]
+            } } }
+          ]
+        }
+      ]
+    }
+  }`;
+
+  const RAW_ENVELOPE_ONLY = `{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "id": "task-2",
+      "contextId": "ctx-plan",
+      "status": { "state": "COMPLETED" },
+      "messages": [
+        { "role": "user", "parts": [{ "text": "hi" }] },
+        {
+          "role": "agent",
+          "parts": [
+            { "data": { "action": "render", "component": "ActionCard", "props": { "title": "Second turn" } } }
+          ]
+        }
+      ]
+    }
+  }`;
+
+  it("carries the second DataPart (onboarding_plan) through readLastDataParts", async () => {
+    mockFetchRaw(RAW_ENVELOPE_AND_PLAN);
+    const adapter = new A2AAdapter(config);
+
+    const result = await adapter.chat([{ role: "user", content: "hi" }]);
+
+    // chat() still returns the envelope and only the envelope.
+    expect(JSON.parse(result)).toEqual({
+      action: "render",
+      component: "ActionCard",
+      props: { title: "Welcome" },
+    });
+
+    const extra = adapter.readLastDataParts();
+    expect(extra).toHaveLength(1);
+    // Uninterpreted and complete: the selection seams (showcase, coachmarks)
+    // and a null category survive the trip untouched.
+    expect(extra?.[0]).toEqual({
+      kind: "onboarding_plan",
+      plan: {
+        summary: "Sleep first, hydration second.",
+        items: [
+          { title: "Wind down at 22:30", description: "Screens off.", category: "sleep" },
+          { title: "Drink 1.5L", description: "", category: null },
+        ],
+        next_action_label: "Get started",
+        next_action: "start",
+        showcase: ["sleep_tracker"],
+        coachmarks: ["home_streak"],
+      },
+    });
+  });
+
+  it("reports undefined (not an empty array) when the task carries only the envelope", async () => {
+    mockFetchRaw(RAW_ENVELOPE_ONLY);
+    const adapter = new A2AAdapter(config);
+
+    await adapter.chat([{ role: "user", content: "hi" }]);
+
+    expect(adapter.readLastDataParts()).toBeUndefined();
+  });
+
+  it("carries an unknown kind and a malformed plan verbatim without breaking the envelope", async () => {
+    const raw = `{
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "id": "task-3",
+        "contextId": "ctx-plan",
+        "status": { "state": "COMPLETED" },
+        "messages": [
+          {
+            "role": "agent",
+            "parts": [
+              { "data": { "action": "render", "component": "ActionCard", "props": { "title": "Welcome" } } },
+              { "data": { "kind": "some_future_kind_v9", "payload": [1, "two", null] } },
+              { "data": { "kind": "onboarding_plan", "plan": "not-an-object", "_degraded": "plan_synthesis" } }
+            ]
+          }
+        ]
+      }
+    }`;
+    mockFetchRaw(raw);
+    const adapter = new A2AAdapter(config);
+
+    const result = await adapter.chat([{ role: "user", content: "hi" }]);
+
+    // The envelope is untouched and still validates — the plan never reaches
+    // the validator, so a malformed one cannot break rendering.
+    const registry: ComponentRegistry = new Map();
+    registry.set("ActionCard", {
+      name: "ActionCard",
+      description: "An action card.",
+      propsSchema: z.object({ title: z.string() }),
+      component: () => null,
+    });
+    const response = validateLLMResponse(result, registry);
+    expect(response.action).toBe("render");
+
+    // Both extras survive, in wire order, uninterpreted — including the
+    // private _degraded marker, which the SDK must neither read nor strip.
+    const extra = adapter.readLastDataParts();
+    expect(extra).toHaveLength(2);
+    expect(extra?.[0]).toEqual({ kind: "some_future_kind_v9", payload: [1, "two", null] });
+    expect(extra?.[1]).toEqual({
+      kind: "onboarding_plan",
+      plan: "not-an-object",
+      _degraded: "plan_synthesis",
+    });
+  });
+
+  it("does not leak the first turn's plan into a second turn that carries none", async () => {
+    mockFetchRaw(RAW_ENVELOPE_AND_PLAN, RAW_ENVELOPE_ONLY);
+    const adapter = new A2AAdapter(config);
+
+    await adapter.chat([{ role: "user", content: "first" }]);
+    expect(adapter.readLastDataParts()).toHaveLength(1);
+
+    await adapter.chat([{ role: "user", content: "second" }]);
+    expect(adapter.readLastDataParts()).toBeUndefined();
+  });
+
+  it("clears the stored parts when a later chat() fails, so a rejected turn reads back nothing", async () => {
+    const rawFailed = `{
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "id": "task-4",
+        "status": { "state": "FAILED", "message": "agent crashed" },
+        "messages": []
+      }
+    }`;
+    mockFetchRaw(RAW_ENVELOPE_AND_PLAN, rawFailed);
+    const adapter = new A2AAdapter(config);
+
+    await adapter.chat([{ role: "user", content: "first" }]);
+    expect(adapter.readLastDataParts()).toHaveLength(1);
+
+    await expect(
+      adapter.chat([{ role: "user", content: "second" }])
+    ).rejects.toThrow(/FAILED/);
+    expect(adapter.readLastDataParts()).toBeUndefined();
   });
 });

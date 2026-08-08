@@ -23,4 +23,19 @@ export interface BaseAdapter {
     onChunk: StreamOnChunk,
     signal?: AbortSignal
   ): Promise<void>;
+  /**
+   * Optional read-back for structured data the transport carried alongside the
+   * `chat()` string but could not express inside it — e.g. an A2A task whose
+   * agent message holds more than one DataPart. Returns every such part past
+   * the first, in wire order, uninterpreted, or `undefined` when the last
+   * `chat()` carried none.
+   *
+   * ⚠️ Invariant: this reads back the MOST RECENT `chat()` call only, and is
+   * correct solely when read synchronously after that call's `await` resolves,
+   * with no intervening `await`. Every `chat()` overwrites the stored value —
+   * including a call that carries no extra data, which clears it — so a later
+   * turn can never observe an earlier turn's payload. Adapters that never carry
+   * extra data simply omit this member.
+   */
+  readLastDataParts?(): unknown[] | undefined;
 }

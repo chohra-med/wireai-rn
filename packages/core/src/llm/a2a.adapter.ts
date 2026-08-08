@@ -81,6 +81,8 @@ export class A2AAdapter implements BaseAdapter {
   private readonly apiKey?: string;
   private readonly metadata?: Record<string, unknown>;
   private contextId: string | undefined = undefined;
+  // Extra DataParts of the most recent completed chat() — see readLastDataParts().
+  private lastDataParts: unknown[] | undefined = undefined;
 
   constructor(config: LocalLLMConfig) {
     this.url = config.baseUrl.replace(/\/$/, "");
@@ -93,6 +95,21 @@ export class A2AAdapter implements BaseAdapter {
   /** Clears the A2A contextId so the next chat() starts a fresh session. */
   resetContext(): void {
     this.contextId = undefined;
+    this.lastDataParts = undefined;
+  }
+
+  /**
+   * Every DataPart of the last completed chat() past the first one — the first
+   * is what chat() itself returned as its string. Wire order, uninterpreted:
+   * this SDK is a transport and does not know what any payload means. Returns
+   * `undefined` when the last task carried at most one DataPart.
+   *
+   * ⚠️ Read it synchronously after the awaited chat() that produced it. Each
+   * chat() overwrites this, so a turn with no extra data clears the previous
+   * turn's value rather than leaving it readable.
+   */
+  readLastDataParts(): unknown[] | undefined {
+    return this.lastDataParts;
   }
 
   // ─── ping ───────────────────────────────────────────────────────────────────
@@ -123,6 +140,10 @@ export class A2AAdapter implements BaseAdapter {
     messages: Pick<Message, "role" | "content">[],
     signal?: AbortSignal
   ): Promise<string> {
+    // Fail closed: drop the previous turn's extra parts before this call can
+    // fail, so a rejected chat() never leaves an earlier turn's data readable.
+    this.lastDataParts = undefined;
+
     const combined = new AbortController();
     let timedOut = false;
     const tid = setTimeout(() => {
@@ -224,6 +245,7 @@ export class A2AAdapter implements BaseAdapter {
         );
       }
 
+      this.lastDataParts = this._extractExtraDataParts(task);
       return this._extractContent(task);
     } catch (err) {
       clearTimeout(tid);
@@ -333,18 +355,7 @@ export class A2AAdapter implements BaseAdapter {
    * Supports both A2A v1.0 (unified Part) and v0.3 (separate types with "content" field).
    */
   private _extractContent(task: A2ATask): string {
-    const parts: A2APart[] = [];
-
-    // Collect from agent messages, reversed so the latest message is checked first
-    for (const msg of (task.messages ?? []).slice().reverse()) {
-      if (msg.role === "agent" || msg.role === "assistant") {
-        parts.push(...(msg.parts ?? []));
-      }
-    }
-    // Collect from artifacts (latest first)
-    for (const artifact of (task.artifacts ?? []).slice().reverse()) {
-      parts.push(...(artifact.parts ?? []));
-    }
+    const parts = this._collectParts(task);
 
     // Pass 1: DataPart — structured wireai-rn JSON or A2UI payload
     for (const p of parts) {
@@ -358,6 +369,50 @@ export class A2AAdapter implements BaseAdapter {
     }
 
     return "";
+  }
+
+  /**
+   * The task's parts in the order the extractors read them: agent messages
+   * latest-first, then artifacts latest-first. Shared by _extractContent and
+   * _extractExtraDataParts so "the first DataPart" means the same part in both
+   * — the string chat() returns and the extras it leaves behind can never
+   * disagree about where the boundary is.
+   */
+  private _collectParts(task: A2ATask): A2APart[] {
+    const parts: A2APart[] = [];
+
+    // Collect from agent messages, reversed so the latest message is checked first
+    for (const msg of (task.messages ?? []).slice().reverse()) {
+      if (msg.role === "agent" || msg.role === "assistant") {
+        parts.push(...(msg.parts ?? []));
+      }
+    }
+    // Collect from artifacts (latest first)
+    for (const artifact of (task.artifacts ?? []).slice().reverse()) {
+      parts.push(...(artifact.parts ?? []));
+    }
+
+    return parts;
+  }
+
+  /**
+   * Every DataPart past the first, uninterpreted. The first DataPart is the
+   * component envelope that _extractContent stringifies and chat() returns;
+   * anything after it (the server's `onboarding_plan`, for example) used to be
+   * dropped here with no way for a consumer to recover it.
+   *
+   * Deliberately unvalidated: an unknown or malformed `kind` is carried through
+   * exactly as received. Interpreting payloads is the consumer's job, and a
+   * transport that throws on an unrecognised part would break every host the
+   * moment the server learns a new one.
+   */
+  private _extractExtraDataParts(task: A2ATask): unknown[] | undefined {
+    const dataParts: unknown[] = [];
+    for (const p of this._collectParts(task)) {
+      if (p.data !== undefined) dataParts.push(p.data);
+    }
+
+    return dataParts.length > 1 ? dataParts.slice(1) : undefined;
   }
 
   private _authHeaders(): Record<string, string> {

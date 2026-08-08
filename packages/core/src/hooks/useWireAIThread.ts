@@ -213,6 +213,11 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
 
         // Non-streaming path — unchanged behavior.
         const raw = await adapter.chat(apiMessages, controller.signal);
+        // Must stay adjacent to the awaited chat() above, with no await in
+        // between: the adapter holds the extra parts of its most recent call
+        // only, so adjacency is the whole reason this is provably *this* turn's
+        // data. Adapters that carry none omit the method and this is undefined.
+        const dataParts = adapter.readLastDataParts?.();
 
         if (requestId !== requestIdRef.current) return;
 
@@ -229,6 +234,9 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           role: "assistant",
           content: raw,
           response,
+          // Spread, not `dataParts`, so a turn with no extra data produces a
+          // message with no such key at all rather than an explicit undefined.
+          ...(dataParts ? { dataParts } : {}),
           timestamp: Date.now(),
         };
 
