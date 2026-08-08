@@ -1,6 +1,6 @@
 {
   "name": "wireai-rn",
-  "version": "0.2.5-next.0",
+  "version": "0.2.5-next.1",
   "description": "Wire your AI agent to native mobile UI. Open-source React Native SDK for generative UI — render interactive native components from LLM responses.",
   "keywords": [
     "react-native",
