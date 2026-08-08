@@ -70,6 +70,18 @@ export type Message = {
   role: MessageRole;
   content: string;
   response?: WireAIResponse;
+  /**
+   * Structured data the transport carried alongside `content`, past the part
+   * that became `content` itself — in wire order, uninterpreted. Today only
+   * `A2AAdapter` produces it, from an A2A task whose agent message holds more
+   * than one DataPart.
+   *
+   * The SDK deliberately does not know what any of these payloads mean: it is
+   * a generic carrier, so a consumer narrows by its own convention (for the
+   * Wire onboarding server, a part with `kind: "onboarding_plan"`). Absent —
+   * not `[]` — when the turn carried no extra data.
+   */
+  dataParts?: unknown[];
   /** True while the assistant message is still being streamed. */
   isStreaming?: boolean;
   timestamp: number;
