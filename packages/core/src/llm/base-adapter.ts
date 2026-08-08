@@ -23,4 +23,16 @@ export interface BaseAdapter {
     onChunk: StreamOnChunk,
     signal?: AbortSignal
   ): Promise<void>;
+  /**
+   * Optional. Structured data the transport carried ALONGSIDE the rendered card on
+   * the last completed `chat()` — today, the A2A `onboarding_plan` DataPart. `chat()`
+   * returns a string, so an adapter that receives more than a card has nowhere else to
+   * put it; `useWireAIThread` reads this after each non-streaming turn and hangs the
+   * value off the assistant `Message` as `plan`. (The streaming path is not wired to
+   * it: no adapter implements both `chatStream` and this today.)
+   *
+   * `undefined` (or an adapter that does not implement this at all) means the turn
+   * carried no plan, which is the normal case for every turn but a terminal one.
+   */
+  readLastPlan?(): unknown;
 }

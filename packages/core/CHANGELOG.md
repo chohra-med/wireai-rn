@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **A2A: the agent's structured plan now reaches the app.** The onboarding backend appends it as a SECOND DataPart on a completed task (`{ kind: "onboarding_plan", plan }`), and `_extractContent` — which collapses a task to one string and returns the FIRST DataPart — dropped it. New `extractOnboardingPlan(task)` reads it, `A2AAdapter.readLastPlan()` exposes it for the turn that just completed, and `useWireAIThread` hangs it off the assistant `Message` as the new optional `plan?: unknown`.
+- Additive by construction: `_extractContent`'s signature and return are unchanged, `readLastPlan` is an OPTIONAL `BaseAdapter` capability, and a turn carrying no plan produces exactly the message shape it did before (the field is spread in only when a plan exists).
+
 ## [0.2.4] - 2026-07-06
 
 ### Changed

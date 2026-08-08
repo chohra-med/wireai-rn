@@ -72,6 +72,16 @@ export type Message = {
   response?: WireAIResponse;
   /** True while the assistant message is still being streamed. */
   isStreaming?: boolean;
+  /**
+   * Structured data the agent attached to this turn beside the rendered card —
+   * today, the A2A `onboarding_plan` DataPart (see `BaseAdapter.readLastPlan`).
+   * Absent on every turn that carried none, which is all of them on a transport
+   * or a flow that never sends one.
+   *
+   * `unknown` on purpose: the SDK transports the plan, the agent defines it, and
+   * the host validates it before applying it.
+   */
+  plan?: unknown;
   timestamp: number;
 };
 

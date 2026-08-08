@@ -65,6 +65,57 @@ const WORKING = new Set<A2ATaskState>([
   "submitted", "working",
 ]);
 
+/**
+ * The `kind` marker on the DataPart that carries the agent's structured plan.
+ * The Wire AI onboarding backend appends it as a SECOND DataPart on a completed
+ * task: `{ data: { kind: "onboarding_plan", plan: <plan> } }`. The first DataPart
+ * stays the wireai-rn render envelope, which is what `_extractContent` returns.
+ */
+const ONBOARDING_PLAN_KIND = "onboarding_plan";
+
+/**
+ * Every part of a terminal task, latest agent message first, then artifacts.
+ * Shared by content extraction and plan extraction so both read the same order.
+ */
+function collectParts(task: A2ATask): A2APart[] {
+  const parts: A2APart[] = [];
+  // Collect from agent messages, reversed so the latest message is checked first
+  for (const msg of (task.messages ?? []).slice().reverse()) {
+    if (msg.role === "agent" || msg.role === "assistant") {
+      parts.push(...(msg.parts ?? []));
+    }
+  }
+  // Collect from artifacts (latest first)
+  for (const artifact of (task.artifacts ?? []).slice().reverse()) {
+    parts.push(...(artifact.parts ?? []));
+  }
+  return parts;
+}
+
+/**
+ * Reads the structured plan out of a terminal A2A task, or `undefined` when the
+ * task carries none.
+ *
+ * This exists because `_extractContent` collapses a task to a single string — it
+ * returns the FIRST DataPart and every later part is dropped. That is correct for
+ * rendering (the render envelope leads) but it means the plan the agent attached
+ * never reaches the app. This is the additive second read: same task, same parts,
+ * different question. It never throws and never changes what `chat()` returns.
+ *
+ * The plan is returned as `unknown` on purpose — the SDK does not own its schema.
+ * The agent decides what a plan is; the host validates and applies it.
+ */
+export function extractOnboardingPlan(task: A2ATask): unknown {
+  for (const part of collectParts(task)) {
+    const data = part.data;
+    if (!data || typeof data !== "object") continue;
+    if (data.kind !== ONBOARDING_PLAN_KIND) continue;
+    if (!("plan" in data)) continue;
+    return data.plan;
+  }
+  return undefined;
+}
+
 const POLL_INTERVAL_MS = 1000;
 // Safety guard only. The real stop condition for the poll loop is the
 // timeoutMs abort armed in chat(); this sits a few polls *above* the timeout
@@ -81,6 +132,8 @@ export class A2AAdapter implements BaseAdapter {
   private readonly apiKey?: string;
   private readonly metadata?: Record<string, unknown>;
   private contextId: string | undefined = undefined;
+  /** The plan carried by the last completed chat() — see readLastPlan(). */
+  private lastPlan: unknown = undefined;
 
   constructor(config: LocalLLMConfig) {
     this.url = config.baseUrl.replace(/\/$/, "");
@@ -93,6 +146,18 @@ export class A2AAdapter implements BaseAdapter {
   /** Clears the A2A contextId so the next chat() starts a fresh session. */
   resetContext(): void {
     this.contextId = undefined;
+    this.lastPlan = undefined;
+  }
+
+  /**
+   * The structured plan the agent attached to the LAST completed `chat()`, or
+   * `undefined` when that turn carried none (which is every turn but the last one
+   * of an onboarding, and every turn of a script-driven flow).
+   *
+   * Read it right after `chat()` resolves; it is overwritten by the next turn.
+   */
+  readLastPlan(): unknown {
+    return this.lastPlan;
   }
 
   // ─── ping ───────────────────────────────────────────────────────────────────
@@ -123,6 +188,8 @@ export class A2AAdapter implements BaseAdapter {
     messages: Pick<Message, "role" | "content">[],
     signal?: AbortSignal
   ): Promise<string> {
+    // Belongs to the turn being sent, so it never survives into the next one.
+    this.lastPlan = undefined;
     const combined = new AbortController();
     let timedOut = false;
     const tid = setTimeout(() => {
@@ -223,6 +290,8 @@ export class A2AAdapter implements BaseAdapter {
           `[WireAI] A2A task ended in state "${state}": ${task.status.message ?? "no detail"}`
         );
       }
+
+      this.lastPlan = extractOnboardingPlan(task);
 
       return this._extractContent(task);
     } catch (err) {
@@ -333,18 +402,7 @@ export class A2AAdapter implements BaseAdapter {
    * Supports both A2A v1.0 (unified Part) and v0.3 (separate types with "content" field).
    */
   private _extractContent(task: A2ATask): string {
-    const parts: A2APart[] = [];
-
-    // Collect from agent messages, reversed so the latest message is checked first
-    for (const msg of (task.messages ?? []).slice().reverse()) {
-      if (msg.role === "agent" || msg.role === "assistant") {
-        parts.push(...(msg.parts ?? []));
-      }
-    }
-    // Collect from artifacts (latest first)
-    for (const artifact of (task.artifacts ?? []).slice().reverse()) {
-      parts.push(...(artifact.parts ?? []));
-    }
+    const parts: A2APart[] = collectParts(task);
 
     // Pass 1: DataPart — structured wireai-rn JSON or A2UI payload
     for (const p of parts) {

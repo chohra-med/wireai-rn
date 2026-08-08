@@ -224,11 +224,17 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           component: (response as { component?: string }).component,
         });
 
+        // The transport may have carried structured data beside the card (the A2A
+        // `onboarding_plan` DataPart). Spread it in only when there IS one, so a turn
+        // without a plan produces exactly the message shape it produced before.
+        const plan = adapter.readLastPlan?.();
+
         const assistantMsg: Message = {
           id: assistantId,
           role: "assistant",
           content: raw,
           response,
+          ...(plan !== undefined ? { plan } : {}),
           timestamp: Date.now(),
         };
 
