@@ -706,7 +706,9 @@ describe("A2AAdapter", () => {
     const response = validateLLMResponse(result, registry);
     expect(response.action).toBe("render");
 
-    // Both extras survive, in wire order, uninterpreted — including the
+    // Both extras survive, uninterpreted — and in wire order here only because
+    // this fixture is a SINGLE agent message: order is preserved within one
+    // message's parts array, not across a task's messages. Including the
     // private _degraded marker, which the SDK must neither read nor strip.
     const extra = adapter.readLastDataParts();
     expect(extra).toHaveLength(2);

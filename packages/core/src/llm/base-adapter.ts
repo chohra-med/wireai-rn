@@ -27,8 +27,13 @@ export interface BaseAdapter {
    * Optional read-back for structured data the transport carried alongside the
    * `chat()` string but could not express inside it — e.g. an A2A task whose
    * agent message holds more than one DataPart. Returns every such part past
-   * the first, in wire order, uninterpreted, or `undefined` when the last
-   * `chat()` carried none.
+   * the first, uninterpreted, in the implementing adapter's own collection
+   * order, or `undefined` when the last `chat()` carried none.
+   *
+   * ⚠️ That order is not the wire order of the task. `A2AAdapter` gathers parts
+   * across the whole task — agent messages latest-first, then artifacts
+   * latest-first — so wire order holds only within a single message's own parts
+   * array. Consumers match a payload by a marker it carries, never by index.
    *
    * ⚠️ Invariant: this reads back the MOST RECENT `chat()` call only, and is
    * correct solely when read synchronously after that call's `await` resolves,
