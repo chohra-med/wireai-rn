@@ -100,9 +100,15 @@ export class A2AAdapter implements BaseAdapter {
 
   /**
    * Every DataPart of the last completed chat() past the first one — the first
-   * is what chat() itself returned as its string. Wire order, uninterpreted:
-   * this SDK is a transport and does not know what any payload means. Returns
-   * `undefined` when the last task carried at most one DataPart.
+   * is what chat() itself returned as its string. Uninterpreted: this SDK is a
+   * transport and does not know what any payload means. Returns `undefined`
+   * when the last task carried at most one DataPart.
+   *
+   * ⚠️ This is _collectParts()' collection order, NOT one turn's parts in
+   * arrival order. Parts are gathered across the whole task — agent messages
+   * latest-first, then artifacts latest-first — so wire order holds only
+   * within a single message's (or artifact's) own parts array. Match a payload
+   * by a marker it carries, never by its index in this array.
    *
    * ⚠️ Read it synchronously after the awaited chat() that produced it. Each
    * chat() overwrites this, so a turn with no extra data clears the previous
