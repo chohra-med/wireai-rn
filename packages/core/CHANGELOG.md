@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-08-09
+
+### Added
+- **A2A: DataParts past the first are no longer dropped.** When an A2A agent message carried more than one `DataPart`, the first became the component envelope `chat()` returns as its string and every later part was discarded inside the adapter with no way for a consumer to recover it. `A2AAdapter` now keeps them: new `readLastDataParts(): unknown[] | undefined` returns every DataPart past the first, uninterpreted, in the adapter's collection order — agent messages latest-first, then artifacts latest-first, so wire order holds only within a single message's parts — or `undefined` when the task carried at most one. Do not index positionally across a task that returns several agent messages. Declared as an optional member on `BaseAdapter`, so adapters that never carry extra data simply omit it. Purely additive — no export was removed or renamed, and the string `chat()` returns is unchanged.
+- **`Message.dataParts?: unknown[]`** — `useWireAIThread` reads `readLastDataParts()` immediately after the awaited non-streaming `chat()` and attaches the result to the assistant message. The key is absent, not `[]`, on a turn that carried no extra data. The SDK deliberately does not interpret these payloads; a consumer narrows by its own convention.
+  - Read-back is scoped to the most recent `chat()`. Each `chat()` clears the stored value before it can fail, so a rejected call or a turn with no extras can never leave an earlier turn's data readable, and `resetContext()` clears it too.
+- README section **"Acceptable use and the EU AI Act"** — the Annex III high-risk boundary, the two Article 5(1) prohibitions, who the deployer is, and the written Article 50(1)/50(2) position for a generative-UI render layer. Full text in the repo's `EU-AI-ACT.md`.
+
+### Changed
+- `prepublishOnly: yarn build` added to the package — the tarball is rebuilt at publish time, so a release can no longer ship a stale `dist/`.
+- Repo landing README reworked: code before marketing, and the Quick Start now defaults to a `webhook` config with the provider key on a server instead of an `apiKey` in the bundle. (Repo page only — not part of the published npm package.)
+
 ## [0.2.4] - 2026-07-06
 
 ### Changed
