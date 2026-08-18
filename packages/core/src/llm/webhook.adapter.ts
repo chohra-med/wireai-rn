@@ -28,6 +28,7 @@
  * OR a plain string response body.
  */
 import type { LocalLLMConfig } from "../types";
+import { createAbortError } from "./abort-error";
 import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 type ChatMessage = { role: string; content: string };
@@ -46,6 +47,11 @@ export class WebhookAdapter implements BaseAdapter {
   }
 
   async chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+    // An already-aborted signal never fires another "abort" event, so the
+    // listener below would never run and the request would go out anyway.
+    // Checked before the timeout timer is armed so nothing is left to leak.
+    if (signal?.aborted) throw createAbortError();
+
     const combined = new AbortController();
     let timedOut = false;
     const timeoutId = setTimeout(() => {
@@ -143,6 +149,10 @@ export class WebhookAdapter implements BaseAdapter {
     onChunk: StreamOnChunk,
     signal?: AbortSignal
   ): Promise<void> {
+    // An already-aborted signal never fires another "abort" event, so without
+    // this the XHR would be opened and sent with nothing left to cancel it.
+    if (signal?.aborted) return Promise.reject(createAbortError());
+
     return new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       let lastLen = 0;

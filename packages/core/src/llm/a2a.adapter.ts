@@ -53,6 +53,7 @@ import type {
   A2AAgentCard,
 } from "../types";
 import type { BaseAdapter } from "./base-adapter";
+import { createAbortError } from "./abort-error";
 import { devLog } from "../utils/dev-log";
 
 const TERMINAL = new Set<A2ATaskState>([
@@ -149,6 +150,11 @@ export class A2AAdapter implements BaseAdapter {
     // Fail closed: drop the previous turn's extra parts before this call can
     // fail, so a rejected chat() never leaves an earlier turn's data readable.
     this.lastDataParts = undefined;
+
+    // An already-aborted signal never fires another "abort" event, so the
+    // listener below would never run and the request would go out anyway.
+    // Checked before the timeout timer is armed so nothing is left to leak.
+    if (signal?.aborted) throw createAbortError();
 
     const combined = new AbortController();
     let timedOut = false;
@@ -268,6 +274,13 @@ export class A2AAdapter implements BaseAdapter {
   ): Promise<A2ATask> {
     let current = task;
     let attempts = 0;
+    // A well-formed JSON-RPC error is permanent (the agent rejected the task,
+    // or does not implement the method). Thrown inside the try below it would
+    // be caught by that block's own catch and swallowed as a transient network
+    // failure, so the loop would poll to the full timeoutMs and report a
+    // timeout instead of the real cause. It is carried out here and rethrown
+    // past the catch; transient network errors keep their retry.
+    let permanentError: Error | undefined;
     // The poll loop runs until the agent reaches a terminal state or the
     // configured timeoutMs aborts the request. A fixed 30-poll cap used to end
     // any run past ~30s regardless of timeoutMs, so a 60s-configured agent that
@@ -309,11 +322,10 @@ export class A2AAdapter implements BaseAdapter {
 
         const rpc = (await res.json()) as A2AJsonRpcResponse;
         if (rpc.error) {
-          throw new Error(
+          permanentError = new Error(
             `[WireAI] A2A poll error ${rpc.error.code}: ${rpc.error.message}`
           );
-        }
-        if (rpc.result) {
+        } else if (rpc.result) {
           current = rpc.result;
           if (current.contextId && !this.contextId) {
             this.contextId = current.contextId;
@@ -328,6 +340,9 @@ export class A2AAdapter implements BaseAdapter {
         }
         // Swallow transient network errors and retry on next iteration
       }
+
+      // Fail fast: outside the catch, so it is not swallowed with the transient ones.
+      if (permanentError) throw permanentError;
     }
 
     if (WORKING.has(current.status.state)) {

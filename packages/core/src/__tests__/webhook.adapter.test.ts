@@ -34,4 +34,25 @@ describe('WebhookAdapter', () => {
       })
     );
   });
+
+  // An already-aborted signal fires no further "abort" event, so the adapter
+  // has to read `signal.aborted` up front or the request goes out regardless.
+  it('rejects an already-aborted signal before issuing any request', async () => {
+    const fetchMock = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('should never be read'),
+      })
+    );
+    (global as unknown as { fetch: unknown }).fetch = fetchMock;
+
+    const controller = new AbortController();
+    controller.abort();
+    const adapter = new WebhookAdapter(config);
+
+    await expect(
+      adapter.chat([{ role: 'user', content: 'hi' }], controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
