@@ -1,5 +1,6 @@
 import { WIREAI_JSON_SCHEMA } from "../schema/wireai-response.schema";
 import type { LocalLLMConfig, Message } from "../types";
+import { createAbortError } from "./abort-error";
 import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 export class LMStudioAdapter implements BaseAdapter {
@@ -24,6 +25,11 @@ export class LMStudioAdapter implements BaseAdapter {
     messages: Pick<Message, "role" | "content">[],
     signal?: AbortSignal
   ): Promise<string> {
+    // An already-aborted signal never fires another "abort" event, so the
+    // listener below would never run and the request would go out anyway.
+    // Checked before the timeout timer is armed so nothing is left to leak.
+    if (signal?.aborted) throw createAbortError();
+
     const combined = new AbortController();
     let timedOut = false;
     const timeoutId = setTimeout(() => {
@@ -80,13 +86,18 @@ export class LMStudioAdapter implements BaseAdapter {
   // LMStudio exposes OpenAI-compatible SSE. response_format is dropped in streaming
   // mode because structured output + streaming are mutually exclusive in LMStudio.
   chatStream(messages: ChatMessages, onChunk: StreamOnChunk, signal?: AbortSignal): Promise<void> {
+    // An already-aborted signal never fires another "abort" event, so without
+    // this the XHR would be opened and sent with nothing left to cancel it.
+    if (signal?.aborted) return Promise.reject(createAbortError());
+
     return new Promise((resolve, reject) => {
       const timeoutMs = this.config.timeoutMs ?? 30000;
       let accumulated = "";
       let timedOut = false;
 
       const xhr = new XMLHttpRequest();
-      let cursor = 0;
+      let lastResponseLength = 0;
+      let bufferedLine = "";
 
       const timeoutId = setTimeout(() => {
         timedOut = true;
@@ -95,34 +106,57 @@ export class LMStudioAdapter implements BaseAdapter {
 
       signal?.addEventListener("abort", () => xhr.abort());
 
+      const parseLine = (line: string): void => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") return;
+        if (!trimmed.startsWith("data:")) return;
+        try {
+          const parsed = JSON.parse(trimmed.slice(5).trim()) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            accumulated += delta;
+            onChunk(accumulated, false);
+          }
+        } catch {
+          // Malformed frame — LMStudio occasionally emits a keep-alive line.
+        }
+      };
+
+      // LMStudio puts one SSE `data:` payload per line, but a chunk boundary
+      // can land mid-line. The trailing fragment is held in `bufferedLine`
+      // until the rest of it arrives instead of being parsed once and dropped;
+      // `flush` (end of stream) parses that remainder, which by then is a
+      // complete line carrying no trailing newline.
+      const consumeLines = (text: string, flush: boolean): void => {
+        bufferedLine += text;
+        const lines = bufferedLine.split("\n");
+        bufferedLine = lines.pop() ?? "";
+        for (const line of lines) parseLine(line);
+        if (flush) {
+          const remainder = bufferedLine;
+          bufferedLine = "";
+          parseLine(remainder);
+        }
+      };
+
       xhr.open("POST", `${this.config.baseUrl}/v1/chat/completions`, true);
       xhr.setRequestHeader("Content-Type", "application/json");
 
       xhr.onprogress = () => {
-        const chunk = xhr.responseText.slice(cursor);
-        cursor = xhr.responseText.length;
-
-        for (const line of chunk.split("\n")) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed === "data: [DONE]") continue;
-          if (!trimmed.startsWith("data:")) continue;
-          try {
-            const parsed = JSON.parse(trimmed.slice(5).trim()) as {
-              choices?: { delta?: { content?: string } }[];
-            };
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              accumulated += delta;
-              onChunk(accumulated, false);
-            }
-          } catch {
-            // partial SSE frame — handled on next onprogress
-          }
-        }
+        const newText = xhr.responseText.slice(lastResponseLength);
+        lastResponseLength = xhr.responseText.length;
+        if (newText) consumeLines(newText, false);
       };
 
       xhr.onload = () => {
         clearTimeout(timeoutId);
+        // Tail flush: text that arrived without a further onprogress, plus the
+        // buffered fragment, is the last content of the stream.
+        const tail = xhr.responseText.slice(lastResponseLength);
+        lastResponseLength = xhr.responseText.length;
+        consumeLines(tail, true);
         if (xhr.status < 200 || xhr.status >= 300) {
           reject(new Error(`LM Studio error ${xhr.status}: ${xhr.responseText.slice(0, 200)}`));
           return;
@@ -138,7 +172,10 @@ export class LMStudioAdapter implements BaseAdapter {
 
       xhr.onabort = () => {
         clearTimeout(timeoutId);
-        reject(new Error("LM Studio request aborted"));
+        // The timeout aborts the XHR, so the timeout branch has to be read
+        // here or a timed-out stream reports as a plain abort. A caller abort
+        // must carry name "AbortError" to be told apart from a real failure.
+        reject(timedOut ? new Error("LM Studio request timed out") : createAbortError());
       };
 
       xhr.send(

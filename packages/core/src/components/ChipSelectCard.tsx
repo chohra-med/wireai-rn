@@ -31,12 +31,13 @@ const _ChipSelectCard: React.FC<Props> = ({
   submitLabel = "Continue",
   maxSelections,
   onSelect,
+  isStreaming = false,
 }) => {
   const [selected, setSelected] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
   const toggle = useCallback((chip: string) => {
-    if (submitted) return;
+    if (submitted || isStreaming) return;
     if (multiSelect) {
       setSelected((prev) => {
         if (prev.includes(chip)) return prev.filter((c) => c !== chip);
@@ -46,13 +47,13 @@ const _ChipSelectCard: React.FC<Props> = ({
     } else {
       setSelected([chip]);
     }
-  }, [submitted, multiSelect, maxSelections]);
+  }, [submitted, isStreaming, multiSelect, maxSelections]);
 
   const handleSubmit = useCallback(() => {
-    if (!selected.length || !onSelect || submitted) return;
+    if (!selected.length || !onSelect || submitted || isStreaming) return;
     setSubmitted(true);
     onSelect(multiSelect ? selected : selected[0]!);
-  }, [selected, onSelect, submitted, multiSelect]);
+  }, [selected, onSelect, submitted, isStreaming, multiSelect]);
 
   return (
     <View style={styles.card}>
@@ -67,6 +68,7 @@ const _ChipSelectCard: React.FC<Props> = ({
             chip={chip}
             isSelected={selected.includes(chip)}
             onToggle={toggle}
+            disabled={isStreaming}
           />
         ))}
       </View>
@@ -74,7 +76,7 @@ const _ChipSelectCard: React.FC<Props> = ({
         title={submitLabel}
         onPress={handleSubmit}
         variant="primary"
-        disabled={selected.length === 0 || submitted}
+        disabled={selected.length === 0 || submitted || isStreaming}
       />
     </View>
   );
@@ -84,13 +86,20 @@ type ChipItemProps = {
   chip: string;
   isSelected: boolean;
   onToggle: (chip: string) => void;
+  disabled: boolean;
 };
 
-const _ChipItem: React.FC<ChipItemProps> = ({ chip, isSelected, onToggle }) => {
+const _ChipItem: React.FC<ChipItemProps> = ({ chip, isSelected, onToggle, disabled }) => {
   const handlePress = useCallback(() => onToggle(chip), [chip, onToggle]);
   return (
-    <Pressable onPress={handlePress}>
-      <View style={[styles.chip, isSelected ? styles.chipSelected : styles.chipUnselected]}>
+    <Pressable onPress={handlePress} disabled={disabled}>
+      <View
+        style={[
+          styles.chip,
+          isSelected ? styles.chipSelected : styles.chipUnselected,
+          disabled && styles.chipDisabled,
+        ]}
+      >
         <Text style={[styles.chipLabel, isSelected ? styles.chipLabelSelected : styles.chipLabelDefault]}>
           {chip}
         </Text>
@@ -129,6 +138,7 @@ const styles = StyleSheet.create({
   },
   chipSelected: { borderColor: colors.primary, backgroundColor: colors.primaryBackground },
   chipUnselected: { borderColor: colors.border, backgroundColor: colors.background },
+  chipDisabled: { opacity: 0.5 },
   chipLabel: { ...textStyles.caption },
   chipLabelSelected: { color: colors.primary, fontWeight: "700" as const },
   chipLabelDefault: { color: colors.textSecondary },

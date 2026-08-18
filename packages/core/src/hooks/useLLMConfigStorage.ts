@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parseStoredLLMConfig } from "../schema/llm-config.schema";
 import type { LocalLLMConfig } from "../types";
 
 export interface StorageBackend {
@@ -28,14 +29,12 @@ export const useLLMConfigStorage = (
     storage
       .getItem(STORAGE_KEY)
       .then((raw) => {
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as LocalLLMConfig;
-            setConfig(parsed);
-          } catch {
-            // corrupt entry — fall through to default
-          }
-        }
+        // Validate before adopting. A persisted entry is untrusted input: it is
+        // whatever last wrote STORAGE_KEY, and adopting it unchecked lets that
+        // writer choose the `baseUrl` this app sends its prompts — and its
+        // `apiKey` — to. An entry that is absent, corrupt, or not shaped like a
+        // LocalLLMConfig falls back to the default the app itself supplied.
+        setConfig(parseStoredLLMConfig(raw, defaultRef.current));
       })
       .catch(() => {
         // storage unavailable — fall through to default

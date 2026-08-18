@@ -366,6 +366,37 @@ describe("A2AAdapter", () => {
     }
   });
 
+  // M8 regression: a well-formed JSON-RPC error during polling is permanent
+  // (the agent rejected the task, or does not implement tasks/get). It used to
+  // be thrown inside the poll try and swallowed by that block's own catch, so
+  // the loop kept polling to the full timeoutMs and reported a timeout.
+  it("fails fast on a permanent JSON-RPC poll error instead of polling to the timeout (M8)", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch(makeWorkingTask(), {
+        jsonrpc: "2.0",
+        id: 2,
+        error: { code: -32601, message: "Method not found" },
+      });
+      // 30s timeout → a poll budget of ~35 polls if the error were swallowed.
+      const adapter = new A2AAdapter({ ...config, timeoutMs: 30_000 });
+
+      const chatPromise = adapter.chat([{ role: "user", content: "hi" }]);
+      chatPromise.catch(() => {});
+
+      await jest.advanceTimersByTimeAsync(3_000);
+
+      // message/send + exactly ONE poll: it stopped at the first permanent
+      // error rather than burning the budget.
+      expect(gFetch()).toHaveBeenCalledTimes(2);
+      await expect(chatPromise).rejects.toThrow(
+        /A2A poll error -32601: Method not found/
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // ── Error states ─────────────────────────────────────────────────────────────
 
   it("throws on FAILED task state", async () => {
@@ -436,6 +467,17 @@ describe("A2AAdapter", () => {
   });
 
   // ── AbortSignal ──────────────────────────────────────────────────────────────
+
+  it("rejects an already-aborted signal before issuing any request", async () => {
+    mockFetch(makeTextTask('{"action":"ask","message":"should never be read"}'));
+    const adapter = new A2AAdapter(config);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      adapter.chat([{ role: "user", content: "hi" }], controller.signal)
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(gFetch()).not.toHaveBeenCalled();
+  });
 
   it("propagates AbortError when signal is aborted", async () => {
     (global as unknown as { fetch: unknown }).fetch = jest.fn(

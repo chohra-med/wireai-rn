@@ -28,13 +28,20 @@ type ItemRowProps = {
   isSelected: boolean;
   multiSelect: boolean;
   onToggle: (id: string) => void;
+  disabled: boolean;
 };
 
-const _ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, multiSelect, onToggle }) => {
+const _ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, multiSelect, onToggle, disabled }) => {
   const handlePress = useCallback(() => onToggle(item.id), [item.id, onToggle]);
   return (
-    <Pressable onPress={handlePress}>
-      <View style={[styles.item, isSelected ? styles.itemSelected : styles.itemUnselected]}>
+    <Pressable onPress={handlePress} disabled={disabled}>
+      <View
+        style={[
+          styles.item,
+          isSelected ? styles.itemSelected : styles.itemUnselected,
+          disabled && styles.itemDisabled,
+        ]}
+      >
         <View style={styles.itemRow}>
           <View
             style={[
@@ -65,12 +72,13 @@ const _ContentSelectCard: React.FC<Props> = ({
   multiSelect = false,
   submitLabel = "Continue",
   onSelect,
+  isStreaming = false,
 }) => {
   const [selected, setSelected] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
   const toggle = useCallback((id: string) => {
-    if (submitted) return;
+    if (submitted || isStreaming) return;
     if (multiSelect) {
       setSelected((prev) =>
         prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -78,16 +86,16 @@ const _ContentSelectCard: React.FC<Props> = ({
     } else {
       setSelected([id]);
     }
-  }, [submitted, multiSelect]);
+  }, [submitted, isStreaming, multiSelect]);
 
   const handleSubmit = useCallback(() => {
-    if (!selected.length || !onSelect || submitted) return;
+    if (!selected.length || !onSelect || submitted || isStreaming) return;
     setSubmitted(true);
     const selectedTitles = items
       .filter((item) => selected.includes(item.id))
       .map((item) => item.title);
     onSelect(multiSelect ? selectedTitles : selectedTitles[0]!);
-  }, [selected, onSelect, submitted, items, multiSelect]);
+  }, [selected, onSelect, submitted, isStreaming, items, multiSelect]);
 
   return (
     <View style={styles.card}>
@@ -100,6 +108,7 @@ const _ContentSelectCard: React.FC<Props> = ({
             isSelected={selected.includes(item.id)}
             multiSelect={multiSelect}
             onToggle={toggle}
+            disabled={isStreaming}
           />
         ))}
       </View>
@@ -107,7 +116,7 @@ const _ContentSelectCard: React.FC<Props> = ({
         title={submitLabel}
         onPress={handleSubmit}
         variant="primary"
-        disabled={selected.length === 0 || submitted}
+        disabled={selected.length === 0 || submitted || isStreaming}
       />
     </View>
   );
@@ -138,6 +147,7 @@ const styles = StyleSheet.create({
   item: { padding: spacing.sm, borderRadius: radii.sm, borderWidth: 1.5, gap: spacing.xs },
   itemSelected: { borderColor: colors.primary, backgroundColor: colors.primaryBackground },
   itemUnselected: { borderColor: colors.border, backgroundColor: colors.background },
+  itemDisabled: { opacity: 0.5 },
   itemRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   indicator: { width: IND, height: IND, borderWidth: 2 },
   indicatorSelected: { borderColor: colors.primary, backgroundColor: colors.primary },

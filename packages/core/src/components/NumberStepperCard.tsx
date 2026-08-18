@@ -32,6 +32,7 @@ const _NumberStepperCard: React.FC<Props> = ({
   unit,
   submitLabel = "Confirm",
   onSubmit,
+  isStreaming = false,
 }) => {
   // Coerce every numeric prop so a malformed LLM payload (NaN, Infinity, string)
   // can never propagate to layout math or CoreGraphics.
@@ -46,16 +47,16 @@ const _NumberStepperCard: React.FC<Props> = ({
   const [submitted, setSubmitted] = useState(false);
 
   const handleDecrement = useCallback(() => {
-    if (!submitted) setValue((v) => Math.max(v - safeStep, safeMin));
-  }, [submitted, safeStep, safeMin]);
+    if (!submitted && !isStreaming) setValue((v) => Math.max(v - safeStep, safeMin));
+  }, [submitted, isStreaming, safeStep, safeMin]);
 
   const handleIncrement = useCallback(() => {
-    if (!submitted) setValue((v) => Math.min(v + safeStep, safeMax));
-  }, [submitted, safeStep, safeMax]);
+    if (!submitted && !isStreaming) setValue((v) => Math.min(v + safeStep, safeMax));
+  }, [submitted, isStreaming, safeStep, safeMax]);
 
   const handleSubmit = useCallback(() => {
-    if (!submitted) { setSubmitted(true); onSubmit?.(value); }
-  }, [submitted, onSubmit, value]);
+    if (!submitted && !isStreaming) { setSubmitted(true); onSubmit?.(value); }
+  }, [submitted, isStreaming, onSubmit, value]);
 
   const atMin = value <= safeMin;
   const atMax = value >= safeMax;
@@ -65,27 +66,27 @@ const _NumberStepperCard: React.FC<Props> = ({
       <Text style={styles.label}>{label}</Text>
       <View style={styles.stepper}>
         <Pressable
-          onPress={atMin || submitted ? undefined : handleDecrement}
-          disabled={atMin || submitted}
-          style={[styles.stepBtn, atMin && styles.stepBtnDisabled]}
+          onPress={atMin || submitted || isStreaming ? undefined : handleDecrement}
+          disabled={atMin || submitted || isStreaming}
+          style={[styles.stepBtn, (atMin || isStreaming) && styles.stepBtnDisabled]}
         >
-          <Text style={[styles.stepBtnLabel, atMin && styles.stepBtnLabelDisabled]}>{"−"}</Text>
+          <Text style={[styles.stepBtnLabel, (atMin || isStreaming) && styles.stepBtnLabelDisabled]}>{"−"}</Text>
         </Pressable>
         <View style={styles.valueBox}>
           <Text style={styles.valueText}>{String(value)}</Text>
           {unit ? <Text style={styles.unitText}>{unit}</Text> : null}
         </View>
         <Pressable
-          onPress={atMax || submitted ? undefined : handleIncrement}
-          disabled={atMax || submitted}
-          style={[styles.stepBtn, atMax && styles.stepBtnDisabled]}
+          onPress={atMax || submitted || isStreaming ? undefined : handleIncrement}
+          disabled={atMax || submitted || isStreaming}
+          style={[styles.stepBtn, (atMax || isStreaming) && styles.stepBtnDisabled]}
         >
-          <Text style={[styles.stepBtnLabel, atMax && styles.stepBtnLabelDisabled]}>{"+"}
+          <Text style={[styles.stepBtnLabel, (atMax || isStreaming) && styles.stepBtnLabelDisabled]}>{"+"}
           </Text>
         </Pressable>
       </View>
       <Text style={styles.rangeHint}>{`${safeMin} – ${safeMax}${unit ? ` ${unit}` : ""}`}</Text>
-      <Btn title={submitLabel} onPress={handleSubmit} variant="primary" disabled={submitted} />
+      <Btn title={submitLabel} onPress={handleSubmit} variant="primary" disabled={submitted || isStreaming} />
     </View>
   );
 };

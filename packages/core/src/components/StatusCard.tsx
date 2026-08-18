@@ -33,18 +33,18 @@ const STATUS_ICONS: Record<string, string> = {
   info: "ℹ",
 };
 
-const _StatusCard: React.FC<Props> = ({ status, title, message, ctaLabel, onContinue, onPress, onSubmit }) => {
+const _StatusCard: React.FC<Props> = ({ status, title, message, ctaLabel, onContinue, onPress, onSubmit, isStreaming = false }) => {
   const [submitted, setSubmitted] = useState(false);
   const color = STATUS_COLORS[status] ?? colors.info;
 
   const handleContinue = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onContinue) onContinue();
       else if (onPress && ctaLabel) onPress(ctaLabel);
       else if (onSubmit) onSubmit("continue");
     }
-  }, [submitted, onContinue, onPress, onSubmit, ctaLabel]);
+  }, [submitted, isStreaming, onContinue, onPress, onSubmit, ctaLabel]);
 
   return (
     <View style={[styles.card, { borderColor: color }]}>
@@ -54,7 +54,7 @@ const _StatusCard: React.FC<Props> = ({ status, title, message, ctaLabel, onCont
       </View>
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {ctaLabel ? (
-        <Btn title={ctaLabel} onPress={handleContinue} variant="primary" disabled={submitted} />
+        <Btn title={ctaLabel} onPress={handleContinue} variant="primary" disabled={submitted || isStreaming} />
       ) : null}
     </View>
   );

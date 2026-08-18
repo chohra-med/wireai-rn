@@ -23,26 +23,27 @@ const _ConfirmPrompt: React.FC<Props> = ({
   cancelLabel = "No",
   onConfirm,
   onCancel,
+  isStreaming = false,
 }) => {
   const [submitted, setSubmitted] = useState(false);
 
   const handleConfirm = useCallback(() => {
-    if (!submitted) { setSubmitted(true); onConfirm?.(); }
-  }, [submitted, onConfirm]);
+    if (!submitted && !isStreaming) { setSubmitted(true); onConfirm?.(); }
+  }, [submitted, isStreaming, onConfirm]);
 
   const handleCancel = useCallback(() => {
-    if (!submitted) { setSubmitted(true); onCancel?.(); }
-  }, [submitted, onCancel]);
+    if (!submitted && !isStreaming) { setSubmitted(true); onCancel?.(); }
+  }, [submitted, isStreaming, onCancel]);
 
   return (
     <View style={styles.card}>
       <Text style={styles.question}>{question}</Text>
       <View style={styles.row}>
         <View style={styles.flex1}>
-          <Btn title={confirmLabel} onPress={handleConfirm} variant="primary" disabled={submitted} />
+          <Btn title={confirmLabel} onPress={handleConfirm} variant="primary" disabled={submitted || isStreaming} />
         </View>
         <View style={styles.flex1}>
-          <Btn title={cancelLabel} onPress={handleCancel} variant="outline" disabled={submitted} />
+          <Btn title={cancelLabel} onPress={handleCancel} variant="outline" disabled={submitted || isStreaming} />
         </View>
       </View>
     </View>

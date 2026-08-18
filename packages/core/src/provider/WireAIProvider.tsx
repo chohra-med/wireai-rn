@@ -3,6 +3,7 @@ import { createComponentRegistry } from "../registry/component-registry";
 import { WireAIContext } from "../registry/registry-context";
 import type { WireAIComponent, LocalLLMConfig, Message } from "../types";
 import { devLog } from "../utils/dev-log";
+import { llmConfigFingerprint } from "../utils/llm-config-fingerprint";
 
 type WireAIProviderProps = {
   llm: LocalLLMConfig;
@@ -98,6 +99,15 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
     }
   }, [llm.baseUrl, llm.apiKey, llm.provider, registry.size]);
 
+  // Depend on the config's CONTENTS, not on its object identity. `llm` is
+  // almost always written inline (`llm={{ provider: "a2a", ... }}`), which is a
+  // new object every render, which would make `contextValue` new every render
+  // and churn everything downstream that keys off it. The fingerprint covers
+  // every field of LocalLLMConfig, so it changes if and only if the config
+  // changes — that makes it the honest dependency here, and it is why the
+  // memoized `llmConfig` below cannot go stale.
+  const llmFingerprint = llmConfigFingerprint(llm);
+
   const contextValue = useMemo(
     () => ({
       registry,
@@ -111,7 +121,7 @@ export const WireAIProvider: React.FC<WireAIProviderProps> = ({
       licenseKey,
       streaming,
     }),
-    [registry, llm, maxContextMessages, maxContextChars, systemPromptSuffix, initialMessages, onMessage, onThreadUpdate, licenseKey, streaming]
+    [registry, llmFingerprint, maxContextMessages, maxContextChars, systemPromptSuffix, initialMessages, onMessage, onThreadUpdate, licenseKey, streaming]
   );
 
   return <WireAIContext.Provider value={contextValue}>{children}</WireAIContext.Provider>;

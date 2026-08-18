@@ -92,10 +92,11 @@ flowchart TD
     F --> G[validateLLMResponse]
     G --> H{Props valid?}
     H --> |Yes| I[ComponentRenderer]
-    H --> |No| J[FallbackMessage]
+    H --> |No| J["Turn dropped:\nuseWireAIThread sets error"]
     I --> K([Native component renders])
-    J --> K
 ```
+
+`FallbackMessage` is not on this path. It renders per node inside `ComponentRenderer`, when a node's props fail their schema or the tree runs past depth 8, and from `ComponentErrorBoundary` when a mounted component throws. A response that came through `validateLLMResponse` has already had both of those checks applied to every node, so on the main path above an invalid response surfaces as `error` and the turn is dropped instead.
 
 ---
 
@@ -583,7 +584,7 @@ The renderer walks the tree, validates each node's props against its registered 
 
 ## Streaming — progressive UI as tokens arrive
 
-Adapters that implement `chatStream` (currently `OpenAIAdapter` and `WebhookAdapter`) push tokens through an XHR-based stream. The thread hook parses partial JSON on each chunk and publishes the best-effort partial response to a small pub/sub store keyed by `messageId`. Subscribe with `useWireAIStream` to render only the bubble that's streaming — the rest of the conversation doesn't re-render.
+Adapters that implement `chatStream` (`OpenAIAdapter`, `OllamaAdapter`, `LMStudioAdapter` and `WebhookAdapter`, which is every adapter except `A2AAdapter`) push tokens through an XHR-based stream. The thread hook parses partial JSON on each chunk and publishes the best-effort partial response to a small pub/sub store keyed by `messageId`. Subscribe with `useWireAIStream` to render only the bubble that's streaming — the rest of the conversation doesn't re-render.
 
 **Render a streaming bubble:**
 
@@ -615,7 +616,9 @@ function AssistantBubble({ message }: { message: Message }) {
 - On the final chunk, the strict validator runs against the full buffer. On success, the placeholder is replaced with the finalized message and the stream store entry is cleared. On failure, the placeholder is removed and `error` is set.
 - Aborting (e.g. user taps Stop) tears down the XHR; no late `onChunk` callbacks fire.
 
-**Falls back automatically.** Adapters without `chatStream` (Ollama, LM Studio, A2A) keep the existing one-shot path. No code change needed in your app to support the mix.
+**Falls back automatically.** `A2AAdapter` is the only adapter without `chatStream`, so an A2A turn keeps the one-shot `chat()` path even with `streaming` left on. No code change needed in your app to support the mix. If you configure `provider: "custom"`, it resolves to the LM Studio adapter, so it streams like the rest.
+
+**No offline or cold-start lane.** If the configured provider, server or agent is unreachable, the turn rejects: the assistant placeholder is removed and `error` is set. That holds for the very first turn as much as any later one. The SDK ships no cached first question, no canned offline flow and no automatic retry. What it gives you is `errorKind` and `retry()` on `useWireAIThread`, so your app can show its own affordance and re-run the last user message on a tap. Seeding `initialMessages` on `WireAIProvider` puts your own content on screen before the first turn, but it does not make that turn succeed.
 
 ---
 
@@ -700,10 +703,24 @@ const {
   messages,     // Message[] — full conversation history
   isLoading,    // boolean — LLM request in flight
   error,        // string | null — last error message
-  sendMessage,  // (text: string) => Promise<void>
+  errorKind,    // "interrupted" | "failed" | null — why the last turn ended unanswered
+  sendMessage,  // (text: string, options?: SendMessageOptions) => void
+  retry,        // () => void — re-run the last user message
+  reset,        // () => void — clear history, return to initial state
   abort,        // () => void — cancel in-flight request
 } = useWireAIThread();
 ```
+
+`errorKind` says why the thread is sitting without an answer, and it is `null`
+when the thread is healthy. `"failed"` means the request errored and `error`
+carries the message. `"interrupted"` means the app went to background mid-turn
+and the request was aborted: nothing failed, `error` stays `null`, and the
+user's message is still in the thread unanswered. Show a retry affordance and
+call `retry()`. The SDK never resends by itself.
+
+`retry()` re-runs the last user message without appending a second copy of it.
+It is a no-op while a send is in flight, and a no-op unless the newest message
+is an unanswered user message, so calling it twice cannot double-send.
 
 ### `useWireAIInput(sendMessage)`
 

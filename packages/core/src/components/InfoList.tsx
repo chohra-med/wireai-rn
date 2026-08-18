@@ -56,17 +56,17 @@ type Props = z.infer<typeof schema> &
     onSubmit?: (value: string) => void;
   };
 
-const _InfoList: React.FC<Props> = ({ title, items, continueLabel, onContinue, onPress, onSubmit }) => {
+const _InfoList: React.FC<Props> = ({ title, items, continueLabel, onContinue, onPress, onSubmit, isStreaming = false }) => {
   const [submitted, setSubmitted] = useState(false);
 
   const handleContinue = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onContinue) onContinue();
       else if (onPress && continueLabel) onPress(continueLabel);
       else if (onSubmit) onSubmit("continue");
     }
-  }, [submitted, onContinue, onPress, onSubmit, continueLabel]);
+  }, [submitted, isStreaming, onContinue, onPress, onSubmit, continueLabel]);
 
   return (
     <View style={styles.card}>
@@ -87,7 +87,7 @@ const _InfoList: React.FC<Props> = ({ title, items, continueLabel, onContinue, o
         );
       })}
       {continueLabel ? (
-        <Btn title={continueLabel} onPress={handleContinue} variant="primary" disabled={submitted} />
+        <Btn title={continueLabel} onPress={handleContinue} variant="primary" disabled={submitted || isStreaming} />
       ) : null}
     </View>
   );

@@ -22,16 +22,17 @@ const _TextInputCard: React.FC<Props> = ({
   placeholder,
   submitLabel = "Submit",
   onSubmit,
+  isStreaming = false,
 }) => {
   const [value, setValue] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = useCallback(() => {
-    if (value.trim() && onSubmit && !submitted) {
+    if (value.trim() && onSubmit && !submitted && !isStreaming) {
       setSubmitted(true);
       onSubmit(value.trim());
     }
-  }, [value, onSubmit, submitted]);
+  }, [value, onSubmit, submitted, isStreaming]);
 
   return (
     <View style={styles.card}>
@@ -40,13 +41,13 @@ const _TextInputCard: React.FC<Props> = ({
         value={value}
         onChangeText={setValue}
         placeholder={placeholder ?? ""}
-        editable={!submitted}
+        editable={!submitted && !isStreaming}
       />
       <Btn
         title={submitLabel}
         onPress={handleSubmit}
         variant="primary"
-        disabled={!value.trim() || submitted}
+        disabled={!value.trim() || submitted || isStreaming}
       />
     </View>
   );

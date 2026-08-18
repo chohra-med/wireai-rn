@@ -33,7 +33,7 @@ export default function App() {
 }
 ```
 
-The agent returns `{ action, component, props }`, Wire RN validates `props` against the component's Zod schema, and a native component renders. Invalid output degrades to a fallback instead of crashing.
+The agent returns `{ action, component, props }`, Wire RN validates `props` against the component's Zod schema, and a native component renders. Output that fails validation never reaches the screen: the turn is dropped and `useWireAIThread` surfaces it as an `error` string, so nothing crashes and no broken UI renders.
 
 > **Local development only.** You can also point the SDK straight at a provider with `{ provider: "openai", model: "gpt-4o-mini", apiKey: "..." }`. A cloud key in a React Native bundle is plain text and can be pulled out of any `.apk` or `.ipa`, so that config is for your machine, not for a build you ship. The SDK logs a warning in `__DEV__` when it sees an `apiKey`. For a keyless local setup, use the Ollama or LM Studio adapter instead. Details: [SECURITY.md](SECURITY.md).
 
@@ -41,7 +41,7 @@ The agent returns `{ action, component, props }`, Wire RN validates `props` agai
 
 <div align="center">
 
-_Part of [**Wire AI**](https://getwireai.com), the AI-native growth engineer for mobile apps._
+_Part of [**Wire AI**](https://getwireai.com), the AI growth engineer for mobile apps._
 
 [![npm version](https://img.shields.io/npm/v/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)
 [![npm downloads](https://img.shields.io/npm/dm/wireai-rn.svg)](https://www.npmjs.com/package/wireai-rn)

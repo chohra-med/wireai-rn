@@ -32,13 +32,20 @@ type OptionRowProps = {
   opt: z.infer<typeof optionObjectSchema>;
   isSelected: boolean;
   onToggle: (value: string) => void;
+  disabled: boolean;
 };
 
-const _OptionRow: React.FC<OptionRowProps> = ({ opt, isSelected, onToggle }) => {
+const _OptionRow: React.FC<OptionRowProps> = ({ opt, isSelected, onToggle, disabled }) => {
   const handlePress = useCallback(() => onToggle(opt.value), [opt.value, onToggle]);
   return (
-    <Pressable onPress={handlePress}>
-      <View style={[styles.option, isSelected ? styles.optionSelected : styles.optionUnselected]}>
+    <Pressable onPress={handlePress} disabled={disabled}>
+      <View
+        style={[
+          styles.option,
+          isSelected ? styles.optionSelected : styles.optionUnselected,
+          disabled && styles.optionDisabled,
+        ]}
+      >
         <View style={[styles.indicator, isSelected ? styles.indicatorSelected : styles.indicatorUnselected]} />
         <Text style={[styles.optionLabel, isSelected ? styles.optionLabelSelected : styles.optionLabelDefault]}>
           {opt.label}
@@ -55,12 +62,13 @@ const _SelectionCard: React.FC<Props> = ({
   submitLabel = "Continue",
   multiSelect = false,
   onSelect,
+  isStreaming = false,
 }) => {
   const [selected, setSelected] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
   const toggle = useCallback((value: string) => {
-    if (submitted) return;
+    if (submitted || isStreaming) return;
     if (multiSelect) {
       setSelected((prev) =>
         prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
@@ -68,13 +76,13 @@ const _SelectionCard: React.FC<Props> = ({
     } else {
       setSelected([value]);
     }
-  }, [submitted, multiSelect]);
+  }, [submitted, isStreaming, multiSelect]);
 
   const handleSubmit = useCallback(() => {
-    if (!selected.length || !onSelect || submitted) return;
+    if (!selected.length || !onSelect || submitted || isStreaming) return;
     setSubmitted(true);
     onSelect(multiSelect ? selected : selected[0]!);
-  }, [selected, onSelect, submitted, multiSelect]);
+  }, [selected, onSelect, submitted, isStreaming, multiSelect]);
 
   return (
     <View style={styles.card}>
@@ -86,6 +94,7 @@ const _SelectionCard: React.FC<Props> = ({
             opt={opt}
             isSelected={selected.includes(opt.value)}
             onToggle={toggle}
+            disabled={isStreaming}
           />
         ))}
       </View>
@@ -93,7 +102,7 @@ const _SelectionCard: React.FC<Props> = ({
         title={submitLabel}
         onPress={handleSubmit}
         variant="primary"
-        disabled={selected.length === 0 || submitted}
+        disabled={selected.length === 0 || submitted || isStreaming}
       />
     </View>
   );
@@ -130,6 +139,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primaryBackground },
   optionUnselected: { borderColor: colors.border, backgroundColor: colors.background },
+  optionDisabled: { opacity: 0.5 },
   indicator: { width: IND, height: IND, borderRadius: radii.full, borderWidth: 2 },
   indicatorSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
   indicatorUnselected: { borderColor: colors.border, backgroundColor: colors.background },

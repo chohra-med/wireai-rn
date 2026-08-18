@@ -9,7 +9,9 @@ import { validateLLMResponse } from "../schema/validate-response";
 import { WireAIPartialResponseSchema } from "../schema/wireai-response.schema";
 import { clearStream, pushStream } from "../streaming/streamStore";
 import type { Message, WireAIResponse } from "../types";
+import { classifyTurnFailure } from "../utils/abort-classification";
 import { trimToContextBudget } from "../utils/context-budget";
+import { llmConfigFingerprint } from "../utils/llm-config-fingerprint";
 import { parsePartialJson } from "../utils/parse-partial-json";
 
 export type SendMessageOptions = {
@@ -21,7 +23,26 @@ export type UseWireAIThreadResult = {
   messages: Message[];
   isLoading: boolean;
   error: string | null;
+  /**
+   * Why the last turn ended without an answer, or `null` when the thread is
+   * healthy.
+   *
+   * - `"failed"` — the request errored. `error` carries the message.
+   * - `"interrupted"` — the app went to background mid-turn, so the request was
+   *   aborted. Nothing failed and `error` stays `null`, but the user's message
+   *   is sitting there unanswered. Show an affordance and call `retry`. The SDK
+   *   never resends by itself.
+   */
+  errorKind: "interrupted" | "failed" | null;
   sendMessage: (text: string, options?: SendMessageOptions) => void;
+  /**
+   * Re-run the last user message without adding a second copy of it to the
+   * thread.
+   *
+   * A no-op while a send is in flight, and a no-op unless the newest message is
+   * an unanswered user message — so calling it twice cannot double-send.
+   */
+  retry: () => void;
   reset: () => void;
   abort: () => void;
 };
@@ -42,6 +63,7 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<"interrupted" | "failed" | null>(null);
 
   // 1. Sync messages state with initialMessages if they change externally
   const prevInitialRef = useRef(initialMessages);
@@ -62,9 +84,22 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
   const adapterRef = useRef<BaseAdapter | null>(null);
   const systemPromptRef = useRef("");
 
+  // Adapter identity keys off the config's CONTENTS, never its object identity.
+  // A consumer writing `llm={{ provider: "a2a", ... }}` inline hands the
+  // provider a brand-new object every render; rebuilding the adapter on that
+  // would throw away its per-session state (the A2A contextId above all) on
+  // every single turn, so the agent would lose the conversation.
+  //
+  // The fingerprint covers every field of LocalLLMConfig, so it changes if and
+  // only if the config changes. That is what makes it the honest dependency
+  // below (a genuine config change still rebuilds the adapter) and why the
+  // `llmConfig` these callbacks close over cannot go stale in any way that
+  // matters: an unchanged fingerprint means identical contents.
+  const llmFingerprint = llmConfigFingerprint(llmConfig);
+
   useEffect(() => {
     adapterRef.current = createAdapter(llmConfig);
-  }, [llmConfig]);
+  }, [llmFingerprint]);
 
   useEffect(() => {
     systemPromptRef.current = buildSystemPrompt(registry, systemPromptSuffix);
@@ -84,10 +119,17 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
 
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Set immediately before an abort the user did not ask for, and consumed by
+  // the catch in `startTurn`. An AbortError cannot say why it was raised, and
+  // the two reasons need opposite handling: backgrounding strands the thread
+  // and has to be surfaced, while abort()/reset()/a superseding send must stay
+  // silent.
+  const backgroundAbortRef = useRef(false);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "background") {
+        if (isLoadingRef.current) backgroundAbortRef.current = true;
         abortControllerRef.current?.abort();
         setIsLoading(false);
       }
@@ -95,28 +137,25 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
     return () => sub.remove();
   }, []);
 
-  const sendMessage = useCallback(
-    (text: string, options?: SendMessageOptions) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      if (isLoadingRef.current && !options?.interruptLoading) return;
-
+  /**
+   * Run one turn against `history` — the message list exactly as it should be
+   * sent, already containing the user message being answered.
+   *
+   * Extracted from `sendMessage` so `retry` can re-run the last turn without
+   * appending a second copy of the user's message to the thread.
+   */
+  const startTurn = useCallback(
+    (history: Message[]) => {
       const requestId = ++requestIdRef.current;
 
-      const userMsg: Message = {
-        id: `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        role: "user",
-        content: trimmed,
-        timestamp: Date.now(),
-      };
-
-      const nextMessages = [...messagesRef.current, userMsg];
-      setMessages(nextMessages);
-      onMessageRef.current?.(userMsg);
       setIsLoading(true);
       isLoadingRef.current = true;
       setError(null);
+      setErrorKind(null);
 
+      // Superseding an in-flight request is intentional, so the abort it causes
+      // must not read as an interruption.
+      backgroundAbortRef.current = false;
       abortControllerRef.current?.abort();
       const controller = new AbortController();
       abortControllerRef.current = controller;
@@ -127,7 +166,7 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
         const adapter = adapterRef.current!;
         const systemPrompt = systemPromptRef.current;
 
-        const budgeted = trimToContextBudget(nextMessages, maxContextMessagesRef.current, maxContextCharsRef.current);
+        const budgeted = trimToContextBudget(history, maxContextMessagesRef.current, maxContextCharsRef.current);
         const apiMessages = [
           { role: "system" as const, content: systemPrompt },
           ...budgeted.map((m) => ({ role: m.role, content: m.content })),
@@ -250,10 +289,24 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           clearStream(assistantId);
           // Drop the placeholder so the user doesn't see an empty streaming bubble.
           setMessages((prev) => prev.filter((m) => !(m.id === assistantId && m.isStreaming)));
-          if (err instanceof Error && err.name === "AbortError") return;
+
+          // Consume the flag: this rejection is the one that abort was for.
+          const abortedByBackground = backgroundAbortRef.current;
+          backgroundAbortRef.current = false;
+
+          const kind = classifyTurnFailure(err, abortedByBackground);
+          if (kind === "silent") return;
           if (requestId !== requestIdRef.current) return;
+          if (kind === "interrupted") {
+            // The user's message stays in the thread and `error` stays null:
+            // nothing failed, the turn was cut short. Surface the state so the
+            // app can offer `retry`. NEVER resend from here.
+            setErrorKind("interrupted");
+            return;
+          }
           devLog.error("sendMessage failed", err instanceof Error ? err : new Error(String(err)));
           setError(err instanceof Error ? err.message : "Something went wrong");
+          setErrorKind("failed");
         })
         .finally(() => {
           if (requestId === requestIdRef.current) {
@@ -262,10 +315,51 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
           }
         });
     },
-    [registry, llmConfig.provider, llmConfig.model]
+    // `streaming` is read inside the callback (both branches of the streaming
+    // check), so it belongs here: without it, flipping the provider's
+    // `streaming` prop left this callback holding the value from the render
+    // that created it. `llmFingerprint` is a strict superset of the
+    // provider/model pair — those two stay listed because the callback reads
+    // them directly, and being primitives they cannot churn.
+    [registry, llmConfig.provider, llmConfig.model, llmFingerprint, streaming]
   );
 
+  const sendMessage = useCallback(
+    (text: string, options?: SendMessageOptions) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      if (isLoadingRef.current && !options?.interruptLoading) return;
+
+      const userMsg: Message = {
+        id: `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        role: "user",
+        content: trimmed,
+        timestamp: Date.now(),
+      };
+
+      const nextMessages = [...messagesRef.current, userMsg];
+      setMessages(nextMessages);
+      onMessageRef.current?.(userMsg);
+      startTurn(nextMessages);
+    },
+    [startTurn]
+  );
+
+  const retry = useCallback(() => {
+    if (isLoadingRef.current) return;
+    const history = messagesRef.current;
+    const last = history.at(-1);
+    // Only an unanswered user message can be retried. Anything else means there
+    // is nothing to re-run, so this is a no-op rather than a surprise send —
+    // and re-running `history` as-is is what keeps the user's message from
+    // being appended twice.
+    if (!last || last.role !== "user") return;
+    startTurn(history);
+  }, [startTurn]);
+
   const reset = useCallback(() => {
+    // Resetting is intentional, so the abort it causes must stay silent.
+    backgroundAbortRef.current = false;
     abortControllerRef.current?.abort();
     // Re-create the adapter so per-session state (e.g. A2A contextId) is cleared
     // along with the message history.
@@ -273,12 +367,15 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
     setMessages(initialMessages ?? []);
     setIsLoading(false);
     setError(null);
-  }, [initialMessages, llmConfig]);
+    setErrorKind(null);
+  }, [initialMessages, llmFingerprint]);
 
   const abort = useCallback(() => {
+    // Aborting is intentional, so it must stay silent.
+    backgroundAbortRef.current = false;
     abortControllerRef.current?.abort();
     setIsLoading(false);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, reset, abort };
+  return { messages, isLoading, error, errorKind, sendMessage, retry, reset, abort };
 };

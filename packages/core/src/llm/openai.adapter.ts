@@ -1,5 +1,6 @@
 import type { LocalLLMConfig, Message } from "../types";
 import { devLog } from "../utils/dev-log";
+import { createAbortError } from "./abort-error";
 import type { BaseAdapter, ChatMessages, StreamOnChunk } from "./base-adapter";
 
 export class OpenAIAdapter implements BaseAdapter {
@@ -63,6 +64,11 @@ export class OpenAIAdapter implements BaseAdapter {
     if (!this.apiKey) {
       throw new Error("[WireAI] OpenAIAdapter: apiKey is required. Pass it via LocalLLMConfig.apiKey.");
     }
+
+    // An already-aborted signal never fires another "abort" event, so the
+    // listener below would never run and the request would go out anyway.
+    // Checked before the timeout timer is armed so nothing is left to leak.
+    if (signal?.aborted) throw createAbortError();
 
     const combined = new AbortController();
     let timedOut = false;
@@ -135,6 +141,10 @@ export class OpenAIAdapter implements BaseAdapter {
         new Error("[WireAI] OpenAIAdapter: apiKey is required. Pass it via LocalLLMConfig.apiKey.")
       );
     }
+
+    // An already-aborted signal never fires another "abort" event, so without
+    // this the XHR would be opened and sent with nothing left to cancel it.
+    if (signal?.aborted) return Promise.reject(createAbortError());
 
     const url = `${this.baseUrl}/v1/chat/completions`;
     const timeoutMs = this.config.timeoutMs ?? 30000;
