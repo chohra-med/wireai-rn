@@ -21,7 +21,13 @@ type ComponentRendererProps = {
   messageId: string;
   response: WireAIResponse;
   callbackOverrides?: CallbackOverrides;
-  /** When true, soft-fails nested validation errors (waits for more chunks instead of showing fallbacks). */
+  /**
+   * When true, does two things: it soft-fails nested validation errors, so a
+   * node whose props have not fully arrived renders `null` and waits for more
+   * chunks instead of showing a fallback, and it is injected into every
+   * rendered component, where the interactive built-ins use it to disable
+   * their controls until the message is complete.
+   */
   isStreaming?: boolean;
 };
 

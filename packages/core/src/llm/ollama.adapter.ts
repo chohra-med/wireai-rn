@@ -154,7 +154,6 @@ export class OllamaAdapter implements BaseAdapter {
         // Tail flush: text that arrived without a further onprogress, plus the
         // buffered fragment, is the last content of the stream.
         const tail = xhr.responseText.slice(lastResponseLength);
-        lastResponseLength = xhr.responseText.length;
         consumeLines(tail, true);
         if (xhr.status < 200 || xhr.status >= 300) {
           reject(new Error(`Ollama error ${xhr.status}: ${xhr.responseText.slice(0, 200)}`));

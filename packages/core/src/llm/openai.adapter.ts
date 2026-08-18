@@ -235,9 +235,7 @@ export class OpenAIAdapter implements BaseAdapter {
         if (timedOut) {
           reject(new Error("OpenAI stream timed out"));
         } else {
-          const err = new Error("Aborted");
-          err.name = "AbortError";
-          reject(err);
+          reject(createAbortError());
         }
       };
 

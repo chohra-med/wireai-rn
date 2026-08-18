@@ -35,7 +35,10 @@ export type InjectedProps = {
    * so most containers don't need this helper.
    */
   renderNode?: (child: WireAINodeRef) => ReactNode;
-  /** True while the parent message is still streaming. Optional UI hint. */
+  /**
+   * True while the parent message is still streaming. Every interactive
+   * built-in gates its controls on this.
+   */
   isStreaming?: boolean;
 };
 

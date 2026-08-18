@@ -225,9 +225,7 @@ export class WebhookAdapter implements BaseAdapter {
             )
           );
         } else {
-          const err = new Error("Aborted");
-          err.name = "AbortError";
-          reject(err);
+          reject(createAbortError());
         }
       };
 

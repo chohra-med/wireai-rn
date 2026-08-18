@@ -9,8 +9,10 @@ import type { LocalLLMConfig } from "../types";
  * as its LLM config, `baseUrl` included, and `apiKey` travels to `baseUrl`.
  *
  * It mirrors the type and nothing more — no URL-scheme allowlist, no host
- * check, no length limit. Anything a consumer can legally pass to
- * `WireAIProvider` must survive a round trip through storage.
+ * check, no length limit. Every field of `LocalLLMConfig` survives a round
+ * trip through storage unchanged. `z.object` strips keys the type does not
+ * declare, so a consumer who stashes extra keys on the object gets them back
+ * dropped, not rejected.
  */
 export const LocalLLMConfigSchema = z.object({
   provider: z.enum(["ollama", "lmstudio", "openai", "webhook", "custom", "a2a"]),

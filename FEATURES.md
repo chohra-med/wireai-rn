@@ -4,7 +4,7 @@ Source of truth for what the SDK ships today. Committed to git. Read by:
 - The marketing website (`getwireai_website`) via a `prebuild`/`predev` script that copies this into its `content/` folder.
 - AI agents and humans authoring copy, docs, or blog posts about the SDK.
 
-> Last updated: 2026-08-18
+> Last updated: 2026-08-19
 > Version: see `packages/core/package.json`
 
 ---
@@ -29,7 +29,11 @@ All components:
 - Validated with Zod schemas before render (no invalid AI output reaches the UI)
 - Use `StyleSheet.create` + design tokens (no inline styles)
 - Hermes-compatible (no browser globals, no `fetch` for streams — XHR only)
-- Themeable via `WireAIProvider`
+- Styled from the SDK's design tokens, which are exported from `wireai-rn`
+  (`colors`, `darkColors`, `violet`, `ink`, `spacing`, `radii`, `textStyles`,
+  `iconSizes`, `widths`) so an app can reuse them in its own screens. The
+  tokens are frozen constants: there is no theming or token-override prop on
+  `WireAIProvider` today.
 
 ## LLM adapters (5)
 
@@ -41,15 +45,24 @@ Located in `packages/core/src/llm/`:
 - **Webhook** — generic webhook adapter for custom backends
 - **A2A (Agent-to-Agent)** — protocol adapter for agent-card-based multi-agent flows
 
-Streaming: enabled by default with a flag to disable. Works in Hermes via XHR ReadableStream polyfill (`fetch` streams are not available in Hermes).
+Streaming: enabled by default with a flag to disable. A2A is the exception: it has
+no `chatStream`, so an A2A turn always takes the one-shot `chat()` path. Works in
+Hermes because the streaming adapters read `XMLHttpRequest.onprogress` directly.
+There is no polyfill: React Native's `fetch` does not expose `response.body` as a
+`ReadableStream`, so `XMLHttpRequest` is the stream.
 
 ## Provider
 
 `WireAIProvider` — top-level context provider. Wraps the app. Exposes:
-- LLM adapter selection
-- Default streaming flag
-- Custom component registry
-- Theme tokens
+- LLM adapter selection (`llm`)
+- Default streaming flag (`streaming`)
+- Custom component registry (`components`)
+- Context budget (`maxContextMessages`, `maxContextChars`)
+- System prompt suffix (`systemPromptSuffix`) and seed history (`initialMessages`)
+- Thread callbacks (`onMessage`, `onThreadUpdate`)
+
+It does not expose a theme or token-override prop. Verify the prop list against
+`packages/core/src/provider/WireAIProvider.tsx` before writing copy about it.
 
 ## Custom components
 
@@ -74,7 +87,12 @@ The component registry is not reached through a hook in `hooks/`: use
 
 ## Styles
 
-Design-token-driven styles in `packages/core/src/styles/`. Consumers can override tokens via `WireAIProvider` props. Geometry tokens (spacing, radius, font sizes) are portable; color tokens follow the consumer app's theme.
+Design-token-driven styles in `packages/core/src/styles/`. The tokens are frozen
+constants (`as const`), and they are exported from `wireai-rn` as `colors`,
+`darkColors`, `violet`, `ink`, `spacing`, `radii`, `textStyles`, `iconSizes` and
+`widths`, so an app can reuse the same scale in its own components. Overriding
+them is not supported today: there is no theming prop on `WireAIProvider`, and a
+built-in's look is changed by registering a custom component instead.
 
 ## What's NOT included (yet)
 

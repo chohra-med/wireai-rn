@@ -293,6 +293,10 @@ export class A2AAdapter implements BaseAdapter {
     while (WORKING.has(current.status.state) && attempts < safetyMaxPolls) {
       if (signal.aborted) {
         if (isTimedOut()) throw this._timeoutError();
+        // Not `createAbortError()`: this error's MESSAGE is "AbortError", not
+        // the factory's "Aborted", and the message is observable to tests and
+        // consumers. Only the `name` matters to the thread hook, so swapping
+        // it in would change behaviour for no gain.
         throw Object.assign(new Error("AbortError"), { name: "AbortError" });
       }
 

@@ -94,7 +94,7 @@ const _SelectionCard: React.FC<Props> = ({
             opt={opt}
             isSelected={selected.includes(opt.value)}
             onToggle={toggle}
-            disabled={isStreaming}
+            disabled={isStreaming || submitted}
           />
         ))}
       </View>

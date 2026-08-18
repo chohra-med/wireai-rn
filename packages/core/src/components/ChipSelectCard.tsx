@@ -68,7 +68,7 @@ const _ChipSelectCard: React.FC<Props> = ({
             chip={chip}
             isSelected={selected.includes(chip)}
             onToggle={toggle}
-            disabled={isStreaming}
+            disabled={isStreaming || submitted}
           />
         ))}
       </View>
