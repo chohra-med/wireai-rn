@@ -108,7 +108,7 @@ const _ContentSelectCard: React.FC<Props> = ({
             isSelected={selected.includes(item.id)}
             multiSelect={multiSelect}
             onToggle={toggle}
-            disabled={isStreaming}
+            disabled={isStreaming || submitted}
           />
         ))}
       </View>

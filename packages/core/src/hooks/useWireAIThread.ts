@@ -132,6 +132,11 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
         if (isLoadingRef.current) backgroundAbortRef.current = true;
         abortControllerRef.current?.abort();
         setIsLoading(false);
+        // The ref has to fall with the state. `retry()` reads the ref, not the
+        // state, and the rejection that clears it in `.finally` does not land
+        // until the aborted request settles: leaving it true made the retry the
+        // interruption exists to offer a silent no-op.
+        isLoadingRef.current = false;
       }
     });
     return () => sub.remove();
