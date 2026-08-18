@@ -37,7 +37,7 @@ useWireAIThread()
     │  - Trims history to context budget
     │  - Prepends system prompt (built from registry)
     ▼
-LLM Adapter (Ollama / LMStudio / OpenAI / Webhook)
+LLM Adapter (Ollama / LMStudio / OpenAI / Webhook / A2A)
     │  - Sends messages array
     │  - Returns raw JSON string
     ▼
@@ -138,6 +138,7 @@ function ChatScreen() {
           messageId={item.id}
           response={item.response}
           callbackOverrides={createCallbacks(item.id)}
+          isStreaming={item.isStreaming ?? false}
         />
       );
     }
@@ -973,6 +974,8 @@ import { Btn, InputField } from "wireai-rn";
 ### 12.1 Component Error Boundary
 
 Every component is automatically wrapped in `ComponentErrorBoundary`. If a component throws during render, the error is caught, logged in `__DEV__`, and replaced with `FallbackMessage`.
+
+Pass `isStreaming` to `ComponentRenderer` while a message is still streaming (it defaults to `false`): it soft-fails nested validation, so a node whose props have not fully arrived renders `null` and waits for the next chunk instead of flashing a fallback, and it disables the interactive controls in the built-in components so a tap cannot fire a handler whose result the next chunk would overwrite.
 
 ```tsx
 // FallbackMessage shown on component crash:

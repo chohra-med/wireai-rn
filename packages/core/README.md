@@ -248,6 +248,7 @@ export function ChatScreen() {
           messageId={item.id}
           response={item.response}
           callbackOverrides={createCallbacks(item.id)}
+          isStreaming={item.isStreaming ?? false}
         />
       );
     }
