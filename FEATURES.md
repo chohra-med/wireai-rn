@@ -4,8 +4,8 @@ Source of truth for what the SDK ships today. Committed to git. Read by:
 - The marketing website (`getwireai_website`) via a `prebuild`/`predev` script that copies this into its `content/` folder.
 - AI agents and humans authoring copy, docs, or blog posts about the SDK.
 
-> Last updated: 2026-05-17
-> Version: 0.1.3
+> Last updated: 2026-08-18
+> Version: see `packages/core/package.json`
 
 ---
 
@@ -29,7 +29,7 @@ All components:
 - Validated with Zod schemas before render (no invalid AI output reaches the UI)
 - Use `StyleSheet.create` + design tokens (no inline styles)
 - Hermes-compatible (no browser globals, no `fetch` for streams — XHR only)
-- Themeable via `WireProvider`
+- Themeable via `WireAIProvider`
 
 ## LLM adapters (5)
 
@@ -45,7 +45,7 @@ Streaming: enabled by default with a flag to disable. Works in Hermes via XHR Re
 
 ## Provider
 
-`WireProvider` — top-level context provider. Wraps the app. Exposes:
+`WireAIProvider` — top-level context provider. Wraps the app. Exposes:
 - LLM adapter selection
 - Default streaming flag
 - Custom component registry
@@ -62,13 +62,19 @@ All AI-generated UI output is validated with Zod (`packages/core/src/schema/`). 
 ## Hooks
 
 Exported from `packages/core/src/hooks/`:
-- `useWireChat` — chat state + LLM interaction
-- `useWireStream` — streaming response handler
-- `useWireRegistry` — access to registered custom components
+- `useWireAIThread` — chat state + LLM interaction
+- `useWireAIInput` — controlled text input that feeds `sendMessage`
+- `useWireAIAction` — callback props for interactive components
+- `useWireAIStream` — streaming response handler
+- `useLLMConfigStorage` — persist and restore the LLM config from device storage
+
+The component registry is not reached through a hook in `hooks/`: use
+`useWireAIContext` and `createComponentRegistry`, both exported from
+`packages/core/src/registry/`.
 
 ## Styles
 
-Design-token-driven styles in `packages/core/src/styles/`. Consumers can override tokens via `WireProvider` props. Geometry tokens (spacing, radius, font sizes) are portable; color tokens follow the consumer app's theme.
+Design-token-driven styles in `packages/core/src/styles/`. Consumers can override tokens via `WireAIProvider` props. Geometry tokens (spacing, radius, font sizes) are portable; color tokens follow the consumer app's theme.
 
 ## What's NOT included (yet)
 
@@ -100,7 +106,7 @@ When this file falls behind reality, the website's AI is generating stale copy. 
 
 Pushed to `main` (`wireai-rn` 602ff13..95db9a4):
 
-- **Streaming by default** — every adapter streams unless you opt out with a flag. New `useWireAIStream` hook + internal `streamStore`, plus a partial-JSON parser so half-arrived component JSON renders progressively instead of waiting for the full payload.
+- **Streaming by default** — every adapter streams unless you opt out with a flag. New `useWireAIStream` hook + internal `streamStore`, plus a partial-JSON parser so half-arrived component JSON renders progressively instead of waiting for the full payload. ⟳ CORRECTED 2026-08-18: the A2A adapter has never implemented `chatStream`, so an A2A turn always takes the one-shot `chat()` path. Every other adapter (OpenAI, Ollama, LM Studio, Webhook) does stream.
 - **A2A (Agent-to-Agent) protocol adapter** — `llm/a2a.adapter.ts` + an agent-card builder (`schema/agent-card.builder.ts`). Wire RN can now sit behind an agent and render what the agent emits.
 - **Local LLM adapters** — first-class Ollama and LMStudio support for running fully on-device / on-LAN.
 - **Nested component composition** — `node-ref` schema lets generated components nest other components, not just a flat list.

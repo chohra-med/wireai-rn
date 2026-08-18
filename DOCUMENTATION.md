@@ -193,6 +193,8 @@ Then pass to the provider:
 
 ## 4. LLM Provider Setup
 
+Whichever provider you pick, the SDK has no offline or cold-start lane: if it is unreachable the turn rejects and surfaces as `error` on `useWireAIThread`, on the first turn as much as any later one, with no cached first question and no automatic retry. Read `errorKind` and offer `retry()` so the user can re-run the turn.
+
 ### 4.1 Ollama (Local)
 
 ```ts
@@ -608,11 +610,22 @@ const {
   messages,     // Message[] — full conversation history
   isLoading,    // boolean — LLM request in flight
   error,        // string | null — last error message
+  errorKind,    // "interrupted" | "failed" | null — why the last turn ended unanswered
   sendMessage,  // (text: string, options?: SendMessageOptions) => void
+  retry,        // () => void — re-run the last user message
   abort,        // () => void — cancel in-flight request
   reset,        // () => void — clear history, return to initial state
 } = useWireAIThread();
 ```
+
+**`errorKind` and `retry`:** `errorKind` is `null` while the thread is healthy.
+`"failed"` means the request errored and `error` carries the message.
+`"interrupted"` means the app went to background mid-turn and the request was
+aborted: nothing failed, `error` stays `null`, and the user's message sits in
+the thread unanswered. Show a retry affordance and call `retry()`. The SDK never
+resends by itself. `retry()` re-runs the last user message without appending a
+second copy of it, and is a no-op while a send is in flight or when the newest
+message is not an unanswered user message.
 
 **`sendMessage` options:**
 ```ts
