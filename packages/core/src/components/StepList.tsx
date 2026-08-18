@@ -30,17 +30,17 @@ type Props = z.infer<typeof schema> &
     onSubmit?: (value: string) => void;
   };
 
-const _StepList: React.FC<Props> = ({ title, steps, ctaLabel, onContinue, onPress, onSubmit }) => {
+const _StepList: React.FC<Props> = ({ title, steps, ctaLabel, onContinue, onPress, onSubmit, isStreaming = false }) => {
   const [submitted, setSubmitted] = useState(false);
 
   const handleContinue = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onContinue) onContinue();
       else if (onPress && ctaLabel) onPress(ctaLabel);
       else if (onSubmit) onSubmit("continue");
     }
-  }, [submitted, onContinue, onPress, onSubmit, ctaLabel]);
+  }, [submitted, isStreaming, onContinue, onPress, onSubmit, ctaLabel]);
 
   return (
     <View style={styles.card}>
@@ -61,7 +61,7 @@ const _StepList: React.FC<Props> = ({ title, steps, ctaLabel, onContinue, onPres
         </View>
       ))}
       {ctaLabel ? (
-        <Btn title={ctaLabel} onPress={handleContinue} variant="primary" disabled={submitted} />
+        <Btn title={ctaLabel} onPress={handleContinue} variant="primary" disabled={submitted || isStreaming} />
       ) : null}
     </View>
   );

@@ -39,46 +39,47 @@ const _ActionCard: React.FC<Props> = ({
   onTertiaryPress,
   onPress,
   onSubmit,
+  isStreaming = false,
 }) => {
   const [submitted, setSubmitted] = useState(false);
 
   const handlePrimary = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onPrimaryPress) onPrimaryPress();
       else if (onPress) onPress(primaryLabel);
       else if (onSubmit) onSubmit(primaryAction);
     }
-  }, [submitted, onPrimaryPress, onPress, onSubmit, primaryLabel, primaryAction]);
+  }, [submitted, isStreaming, onPrimaryPress, onPress, onSubmit, primaryLabel, primaryAction]);
 
   const handleSecondary = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onSecondaryPress) onSecondaryPress();
       else if (onPress && secondaryLabel) onPress(secondaryLabel);
       else if (onSubmit && secondaryAction) onSubmit(secondaryAction);
     }
-  }, [submitted, onSecondaryPress, onPress, onSubmit, secondaryLabel, secondaryAction]);
+  }, [submitted, isStreaming, onSecondaryPress, onPress, onSubmit, secondaryLabel, secondaryAction]);
 
   const handleTertiary = useCallback(() => {
-    if (!submitted) {
+    if (!submitted && !isStreaming) {
       setSubmitted(true);
       if (onTertiaryPress) onTertiaryPress();
       else if (onPress && tertiaryLabel) onPress(tertiaryLabel);
       else if (onSubmit && tertiaryAction) onSubmit(tertiaryAction);
     }
-  }, [submitted, onTertiaryPress, onPress, onSubmit, tertiaryLabel, tertiaryAction]);
+  }, [submitted, isStreaming, onTertiaryPress, onPress, onSubmit, tertiaryLabel, tertiaryAction]);
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
-      <Btn title={primaryLabel} onPress={handlePrimary} variant="primary" disabled={submitted} />
+      <Btn title={primaryLabel} onPress={handlePrimary} variant="primary" disabled={submitted || isStreaming} />
       {secondaryLabel ? (
-        <Btn title={secondaryLabel} onPress={handleSecondary} variant="outline" disabled={submitted} />
+        <Btn title={secondaryLabel} onPress={handleSecondary} variant="outline" disabled={submitted || isStreaming} />
       ) : null}
       {tertiaryLabel ? (
-        <Btn title={tertiaryLabel} onPress={handleTertiary} variant="outline" disabled={submitted} />
+        <Btn title={tertiaryLabel} onPress={handleTertiary} variant="outline" disabled={submitted || isStreaming} />
       ) : null}
     </View>
   );
