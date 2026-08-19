@@ -10,13 +10,13 @@ git clone https://github.com/chohra-med/wireai-rn.git
 cd wireai-rn
 
 # Install dependencies
-npm install
+yarn install
 
 # Build the SDK
-npm run build
+yarn workspace wireai-rn build
 
 # Run tests
-npm run test
+yarn workspace wireai-rn test
 ```
 
 ## Project Structure
@@ -94,9 +94,9 @@ export const MyCardDef: WireAIComponent<typeof schema> = {
 
 Before submitting a PR, ensure:
 
-- [ ] TypeScript compiles (`npm run typecheck`)
-- [ ] Tests pass (`npm test`)
-- [ ] Build succeeds (`npm run build`)
+- [ ] TypeScript compiles (`yarn workspace wireai-rn typecheck`)
+- [ ] Tests pass (`yarn workspace wireai-rn test`)
+- [ ] Build succeeds (`yarn workspace wireai-rn build`)
 - [ ] If new component: uses `React.memo` + `useCallback`
 - [ ] If new component: implements submitted-state pattern
 - [ ] If new component: description is an LLM routing instruction
