@@ -371,6 +371,11 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
     adapterRef.current = createAdapter(llmConfig);
     setMessages(initialMessages ?? []);
     setIsLoading(false);
+    // The ref has to fall with the state. `sendMessage` and `retry` both guard
+    // on the ref rather than on `isLoading`, and the `.finally` that clears it
+    // does not run until the request this reset just aborted settles: leaving
+    // it true made the first send after a reset a silent no-op.
+    isLoadingRef.current = false;
     setError(null);
     setErrorKind(null);
   }, [initialMessages, llmFingerprint]);
@@ -380,6 +385,11 @@ export const useWireAIThread = (): UseWireAIThreadResult => {
     backgroundAbortRef.current = false;
     abortControllerRef.current?.abort();
     setIsLoading(false);
+    // Same reason as in `reset`: the guards in `sendMessage` and `retry` read
+    // the ref, and the `.finally` that clears it waits for the aborted request
+    // to settle. A consumer who stops a turn and immediately sends the next one
+    // got nothing back until the ref fell here too.
+    isLoadingRef.current = false;
   }, []);
 
   return { messages, isLoading, error, errorKind, sendMessage, retry, reset, abort };
