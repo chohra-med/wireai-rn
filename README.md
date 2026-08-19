@@ -117,7 +117,7 @@ Our full reading, dated and with the reasoning visible, covering Article 50, Art
 
 ## The Wire AI ecosystem
 
-[Wire AI](https://getwireai.com) is the AI-native growth engineer for mobile apps: one agent that runs four versions of every step of your users' journey, live at once, and keeps what makes them stay. This project is one piece of that ecosystem:
+[Wire AI](https://getwireai.com) is the AI growth engineer for mobile apps: one agent that runs four versions of every step of your users' journey, live at once, and keeps what makes them stay. This project is one piece of that ecosystem:
 
 - **Wire RN SDK** (`wireai-rn`): this repo. The open-source React Native SDK that renders Wire's AI-driven flows as native components in your app.
 - **Expo boilerplate**: an open-source Expo starter wired for Wire AI activation out of the box. https://github.com/chohra-med/expo_boilerplate

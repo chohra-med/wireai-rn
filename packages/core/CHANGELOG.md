@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.6] - 2026-08-19
 
 ### Added
 - **`errorKind` and `retry()` on `useWireAIThread`.** Sending the app to background mid-turn aborted the in-flight request, and the catch returned silently on any `AbortError`: the assistant placeholder was deleted, `isLoading` went false and `error` stayed `null`, so the user came back to their own message with no answer, no error and no way to ask again. `errorKind: "interrupted" | "failed" | null` now says why a turn ended unanswered. `"failed"` means the request errored and `error` carries the message. `"interrupted"` means the app was backgrounded, the request was aborted, `error` stays `null` and the user's message is retained: show a retry affordance and call `retry()`. `retry: () => void` re-runs the last user message without appending a second copy of it, and is a no-op while a send is in flight or when the newest message is not an unanswered user message. The SDK never resends by itself. Purely additive: no existing member changed meaning, and `abort()`, `reset()` and a superseding `sendMessage` stay silent exactly as before.

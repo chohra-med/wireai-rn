@@ -865,7 +865,7 @@ git clone git@github.com:chohra-med/wireai-rn.git
 cd wireai-rn/packages/core
 yarn install
 yarn build      # ESM + CJS + .d.ts (tsup)
-yarn test       # jest — 87 tests across 9 suites
+yarn test       # jest — run the test suites
 yarn typecheck
 ```
 

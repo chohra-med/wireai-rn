@@ -2082,7 +2082,7 @@ big-integer@1.6.x:
   resolved "https://registry.npmjs.org/big-integer/-/big-integer-1.6.52.tgz"
   integrity sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==
 
-"boilerplate@file:/Users/malikchohra/.claude/jobs/af95ac7e/tmp/rnpub/apps/boilerplate":
+"boilerplate@file:apps/boilerplate":
   version "1.0.0"
   resolved "file:apps/boilerplate"
   dependencies:
@@ -3906,7 +3906,7 @@ memoize-one@^5.0.0:
   resolved "https://registry.npmjs.org/memoize-one/-/memoize-one-5.2.1.tgz"
   integrity sha512-zYiwtZUcYyXKo/np96AGZAckk+FWWsUdJ3cHGGmld7+AhvcWmQyGCYUh1hc4Q/pkOhb65dQR/pqCyK0cOaHz4Q==
 
-"mental-coach@file:/Users/malikchohra/.claude/jobs/af95ac7e/tmp/rnpub/examples/mental-coach":
+"mental-coach@file:examples/mental-coach":
   version "1.0.0"
   resolved "file:examples/mental-coach"
   dependencies:
@@ -5543,7 +5543,7 @@ which@^2.0.1:
   dependencies:
     isexe "^2.0.0"
 
-wireai-rn@*, "wireai-rn@file:/Users/malikchohra/.claude/jobs/af95ac7e/tmp/rnpub/packages/core":
+wireai-rn@*, "wireai-rn@file:packages/core":
   version "0.2.5-next.1"
   resolved "file:packages/core"
 
